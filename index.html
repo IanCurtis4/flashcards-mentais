@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcards com Mapa Mental</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            color: #1a202c;
+            overflow: hidden;
+        }
+        #app-container {
+            display: flex;
+            height: 100vh;
+        }
+        #controls {
+            width: 320px;
+            min-width: 320px;
+            background-color: #ffffff;
+            padding: 24px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            z-index: 10;
+            overflow-y: auto;
+        }
+        #canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+            cursor: grab; /* Cursor para indicar que o fundo é arrastável */
+        }
+        #canvas-wrapper:active {
+            cursor: grabbing;
+        }
+        #canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: #e2e8f0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+            background-size: 20px 20px;
+            overflow: hidden;
+        }
+        #connector-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .flashcard {
+            position: absolute;
+            width: 200px;
+            height: 120px;
+            cursor: grab;
+            perspective: 1000px;
+            z-index: 5;
+            border-radius: 8px;
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            text-align: center;
+            border-radius: 8px;
+            border: 1px solid #cbd5e0;
+            overflow-wrap: break-word;
+        }
+        .flashcard-front {
+            background-color: #ffffff;
+            color: #2d3748;
+        }
+        .flashcard-back {
+            background-color: #edf2f7;
+            color: #4a5568;
+            transform: rotateY(180deg);
+        }
+        .flashcard-id {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            font-size: 10px;
+            background: #4a5568;
+            color: white;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .tags-container {
+            position: absolute;
+            bottom: 5px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 3px;
+            padding: 0 5px;
+        }
+        .tag {
+            background-color: #dbeafe;
+            color: #1e40af;
+            font-size: 9px;
+            padding: 2px 5px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <!-- Painel de Controles -->
+    <div id="controls" class="flex flex-col space-y-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Mapa Mental</h1>
+            <p class="text-sm text-gray-500">Crie flashcards e conecte suas ideias.</p>
+        </div>
+        
+        <!-- Adicionar Card -->
+        <div class="p-4 bg-gray-100 rounded-lg">
+            <h2 class="font-bold mb-2 text-gray-700">Adicionar Novo Card</h2>
+            <form id="add-card-form" class="space-y-3">
+                <input type="text" id="pergunta" placeholder="Pergunta (Frente)" class="w-full p-2 border rounded-md" required>
+                <input type="text" id="resposta" placeholder="Resposta (Verso)" class="w-full p-2 border rounded-md" required>
+                <input type="text" id="tags" placeholder="Tags (ex: fisica, quimica)" class="w-full p-2 border rounded-md" required>
+                <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600 transition-colors">Criar Card</button>
+            </form>
+        </div>
+        
+        <!-- Conectar Cards -->
+        <div class="p-4 bg-gray-100 rounded-lg">
+            <h2 class="font-bold mb-2 text-gray-700">Conectar Cards</h2>
+            <form id="connect-cards-form" class="space-y-3">
+                <div class="flex space-x-2 items-center">
+                    <select id="from-card" class="w-full p-2 border rounded-md"></select>
+                    <span class="text-gray-600">→</span>
+                    <select id="to-card" class="w-full p-2 border rounded-md"></select>
+                </div>
+                <button type="submit" class="w-full bg-green-500 text-white p-2 rounded-md hover:bg-green-600 transition-colors">Conectar</button>
+            </form>
+        </div>
+
+        <!-- Filtrar por Tag -->
+        <div class="p-4 bg-gray-100 rounded-lg">
+            <h2 class="font-bold mb-2 text-gray-700">Filtrar por Tag</h2>
+            <div class="flex space-x-2">
+                <input type="text" id="filter-tag-input" placeholder="Digite uma tag" class="w-full p-2 border rounded-md">
+                <button id="filter-btn" class="bg-indigo-500 text-white px-4 rounded-md hover:bg-indigo-600">Filtrar</button>
+            </div>
+            <button id="clear-filter-btn" class="w-full bg-gray-400 text-white p-2 rounded-md hover:bg-gray-500 transition-colors mt-2">Limpar Filtro</button>
+        </div>
+
+        <!-- Gerenciar Mapas -->
+        <div class="p-4 bg-gray-100 rounded-lg">
+            <h2 class="font-bold mb-2 text-gray-700">Gerenciar Mapas</h2>
+            <div class="space-y-3">
+                <input type="text" id="map-name" placeholder="Nome do mapa" class="w-full p-2 border rounded-md">
+                <button id="save-map" class="w-full bg-purple-500 text-white p-2 rounded-md hover:bg-purple-600 transition-colors">Salvar Mapa</button>
+                <select id="load-map-select" class="w-full p-2 border rounded-md mt-2"></select>
+                <div class="flex space-x-2">
+                    <button id="load-map" class="w-1/2 bg-gray-500 text-white p-2 rounded-md hover:bg-gray-600">Carregar</button>
+                    <button id="delete-map" class="w-1/2 bg-red-500 text-white p-2 rounded-md hover:bg-red-600">Deletar</button>
+                </div>
+                 <button id="clear-canvas" class="w-full bg-yellow-500 text-white p-2 rounded-md hover:bg-yellow-600 mt-2">Limpar Tela</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas e SVG -->
+    <div id="canvas-wrapper">
+        <div id="canvas"></div>
+        <svg id="connector-svg"></svg>
+    </div>
+</div>
+
+
+<script>
+    // --- ELEMENTOS DA DOM ---
+    const canvasWrapper = document.getElementById('canvas-wrapper');
+    const canvas = document.getElementById('canvas');
+    const connectorSvg = document.getElementById('connector-svg');
+    const addCardForm = document.getElementById('add-card-form');
+    const connectCardsForm = document.getElementById('connect-cards-form');
+    const fromCardSelect = document.getElementById('from-card');
+    const toCardSelect = document.getElementById('to-card');
+    const filterTagInput = document.getElementById('filter-tag-input');
+    const filterBtn = document.getElementById('filter-btn');
+    const clearFilterBtn = document.getElementById('clear-filter-btn');
+    const saveMapBtn = document.getElementById('save-map');
+    const loadMapBtn = document.getElementById('load-map');
+    const deleteMapBtn = document.getElementById('delete-map');
+    const mapNameInput = document.getElementById('map-name');
+    const loadMapSelect = document.getElementById('load-map-select');
+    const clearCanvasBtn = document.getElementById('clear-canvas');
+
+    // --- ESTADO DA APLICAÇÃO ---
+    let state = {
+        cards: [],
+        connections: [],
+        nextCardId: 1,
+        activeFilter: null,
+        view: { x: 0, y: 0 } // Posição da "câmera" ou "visão" do canvas
+    };
+
+    // --- LÓGICA DE INTERAÇÃO (ARRASTAR, VIRAR, PANORÂMICA) ---
+    let activeCard = null;
+    let isDraggingCard = false;
+    let isPanning = false;
+    let dragOffsetX, dragOffsetY;
+    let panStartX, panStartY;
+
+    function onMouseDown(e) {
+        if (e.button !== 0) return;
+        
+        const cardElement = e.target.closest('.flashcard');
+        
+        if (cardElement) {
+            // --- INICIAR ARRASTE DE CARD ---
+            isDraggingCard = false;
+            activeCard = cardElement;
+            
+            const cardRect = activeCard.getBoundingClientRect();
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            dragOffsetX = e.clientX - cardRect.left;
+            dragOffsetY = e.clientY - cardRect.top;
+
+            activeCard.style.cursor = 'grabbing';
+            activeCard.style.zIndex = 10;
+        } else {
+            // --- INICIAR PANORÂMICA (ARRASTAR O FUNDO) ---
+            isPanning = true;
+            panStartX = e.clientX;
+            panStartY = e.clientY;
+        }
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    function onMouseMove(e) {
+        if (activeCard) {
+            // --- MOVENDO UM CARD ---
+            isDraggingCard = true;
+            
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            // Calcula a posição do card no espaço virtual do canvas, considerando o arraste e a visão atual
+            let newX = e.clientX - wrapperRect.left - dragOffsetX + state.view.x;
+            let newY = e.clientY - wrapperRect.top - dragOffsetY + state.view.y;
+
+            const cardId = parseInt(activeCard.dataset.id);
+            const cardData = state.cards.find(c => c.id === cardId);
+            if (cardData) {
+                cardData.x = newX;
+                cardData.y = newY;
+            }
+            // Atualiza a posição visual do card e as linhas de conexão
+            activeCard.style.left = `${cardData.x - state.view.x}px`;
+            activeCard.style.top = `${cardData.y - state.view.y}px`;
+            renderConnections();
+
+        } else if (isPanning) {
+            // --- MOVENDO O CANVAS (PANORÂMICA) ---
+            const dx = e.clientX - panStartX;
+            const dy = e.clientY - panStartY;
+
+            // Atualiza a posição da visão
+            state.view.x -= dx;
+            state.view.y -= dy;
+            
+            // Reseta o ponto de início para o próximo movimento
+            panStartX = e.clientX;
+            panStartY = e.clientY;
+            
+            // Re-renderiza tudo com a nova posição da visão
+            render();
+        }
+    }
+
+    function onMouseUp(e) {
+        if (activeCard) {
+            // Se não arrastou o card (foi só um clique), vira o card
+            if (!isDraggingCard) {
+                const cardId = parseInt(activeCard.dataset.id);
+                const cardData = state.cards.find(c => c.id === cardId);
+                if (cardData) {
+                    cardData.isFlipped = !cardData.isFlipped;
+                    activeCard.classList.toggle('flipped');
+                }
+            }
+            // Reseta o estado do card
+            activeCard.style.cursor = 'grab';
+            activeCard.style.zIndex = 5;
+            activeCard = null;
+        }
+        
+        isPanning = false;
+        isDraggingCard = false;
+        
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+    
+    canvasWrapper.addEventListener('mousedown', onMouseDown);
+
+    // --- RENDERIZAÇÃO ---
+    function render() {
+        renderCards();
+        renderConnections();
+        updateSelects();
+        updateMapList();
+        // Atualiza a posição do fundo para dar a ilusão de movimento
+        canvas.style.backgroundPosition = `${-state.view.x}px ${-state.view.y}px`;
+    }
+
+    function renderCards() {
+        canvas.innerHTML = '';
+        const filteredCards = state.activeFilter 
+            ? state.cards.filter(card => card.tags.includes(state.activeFilter))
+            : state.cards;
+
+        filteredCards.forEach(card => {
+            const cardEl = document.createElement('div');
+            cardEl.className = 'flashcard';
+            if (card.isFlipped) cardEl.classList.add('flipped');
+            
+            cardEl.dataset.id = card.id;
+            // A posição visual do card é sua posição virtual MENOS o deslocamento da visão
+            cardEl.style.left = `${card.x - state.view.x}px`;
+            cardEl.style.top = `${card.y - state.view.y}px`;
+
+            const tagsHtml = card.tags.map(tag => `<span class="tag">${tag}</span>`).join('');
+
+            cardEl.innerHTML = `
+                <div class="flashcard-inner">
+                    <div class="flashcard-face flashcard-front">
+                        <span class="flashcard-id">${card.id}</span>
+                        <div class="flex-grow flex items-center justify-center">${card.pergunta}</div>
+                        <div class="tags-container">${tagsHtml}</div>
+                    </div>
+                    <div class="flashcard-face flashcard-back">
+                        <span class="flashcard-id">${card.id}</span>
+                        <div class="flex-grow flex items-center justify-center">${card.resposta}</div>
+                        <div class="tags-container">${tagsHtml}</div>
+                    </div>
+                </div>
+            `;
+            canvas.appendChild(cardEl);
+        });
+    }
+
+    function renderConnections() {
+        connectorSvg.innerHTML = '';
+        const visibleCardIds = new Set(
+            (state.activeFilter 
+                ? state.cards.filter(card => card.tags.includes(state.activeFilter))
+                : state.cards
+            ).map(c => c.id)
+        );
+
+        state.connections.forEach(conn => {
+            if (visibleCardIds.has(conn.from) && visibleCardIds.has(conn.to)) {
+                const fromCard = state.cards.find(c => c.id === conn.from);
+                const toCard = state.cards.find(c => c.id === conn.to);
+
+                if (fromCard && toCard) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    
+                    // As coordenadas da linha também precisam considerar o deslocamento da visão
+                    const x1 = (fromCard.x + 100) - state.view.x; // 100 = 200/2 (metade da largura do card)
+                    const y1 = (fromCard.y + 60) - state.view.y;  // 60 = 120/2 (metade da altura do card)
+                    const x2 = (toCard.x + 100) - state.view.x;
+                    const y2 = (toCard.y + 60) - state.view.y;
+
+                    line.setAttribute('x1', x1);
+                    line.setAttribute('y1', y1);
+                    line.setAttribute('x2', x2);
+                    line.setAttribute('y2', y2);
+                    line.setAttribute('stroke', '#4A5568');
+                    line.setAttribute('stroke-width', '2');
+                    connectorSvg.appendChild(line);
+                }
+            }
+        });
+    }
+
+    function updateSelects() {
+        fromCardSelect.innerHTML = '';
+        toCardSelect.innerHTML = '';
+        state.cards.forEach(card => {
+            fromCardSelect.add(new Option(`Card #${card.id}`, card.id));
+            toCardSelect.add(new Option(`Card #${card.id}`, card.id));
+        });
+    }
+
+    // --- MANIPULAÇÃO DE EVENTOS DOS CONTROLES ---
+    addCardForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const pergunta = document.getElementById('pergunta').value;
+        const resposta = document.getElementById('resposta').value;
+        const tagsInput = document.getElementById('tags').value;
+        const tags = tagsInput.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag);
+
+        if (tags.length === 0) {
+            alert('Por favor, adicione pelo menos uma tag.');
+            return;
+        }
+
+        const newCard = {
+            id: state.nextCardId++,
+            pergunta,
+            resposta,
+            tags,
+            // Posiciona o novo card no centro da visão atual
+            x: (canvasWrapper.clientWidth / 2 - 100) + state.view.x,
+            y: (canvasWrapper.clientHeight / 2 - 60) + state.view.y,
+            isFlipped: false
+        };
+
+        state.cards.push(newCard);
+        addCardForm.reset();
+        render();
+    });
+
+    connectCardsForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fromId = parseInt(fromCardSelect.value);
+        const toId = parseInt(toCardSelect.value);
+
+        if (fromId && toId && fromId !== toId) {
+            const exists = state.connections.some(c => (c.from === fromId && c.to === toId) || (c.from === toId && c.to === fromId));
+            if (!exists) {
+                state.connections.push({ from: fromId, to: toId });
+                renderConnections();
+            } else {
+                alert('Essa conexão já existe.');
+            }
+        }
+    });
+    
+    clearCanvasBtn.addEventListener('click', () => {
+        // CORREÇÃO: Removido o `if (confirm(...))` que pode ser bloqueado.
+        // A ação agora é imediata.
+        state = { cards: [], connections: [], nextCardId: 1, activeFilter: null, view: { x: 0, y: 0 } };
+        mapNameInput.value = '';
+        filterTagInput.value = '';
+        render();
+    });
+
+    filterBtn.addEventListener('click', () => {
+        const filterValue = filterTagInput.value.trim().toLowerCase();
+        if (filterValue) {
+            state.activeFilter = filterValue;
+            render();
+        }
+    });
+
+    clearFilterBtn.addEventListener('click', () => {
+        state.activeFilter = null;
+        filterTagInput.value = '';
+        render();
+    });
+
+    // --- PERSISTÊNCIA (localStorage) ---
+    const STORAGE_KEY = 'flashcardMindMaps_v3';
+
+    function getSavedMaps() {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    }
+
+    function saveCurrentMap() {
+        const name = mapNameInput.value.trim();
+        if (!name) {
+            alert('Por favor, dê um nome ao seu mapa.');
+            return;
+        }
+        const allMaps = getSavedMaps();
+        state.nextCardId = state.cards.length > 0 ? Math.max(...state.cards.map(c => c.id)) + 1 : 1;
+        allMaps[name] = state;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allMaps));
+        alert(`Mapa "${name}" salvo com sucesso!`);
+        updateMapList();
+    }
+
+    function loadMap() {
+        const name = loadMapSelect.value;
+        if (!name) return;
+        const allMaps = getSavedMaps();
+        if (allMaps[name]) {
+            state = allMaps[name];
+            // Garante compatibilidade com mapas antigos
+            if (state.activeFilter === undefined) state.activeFilter = null;
+            if (state.view === undefined) state.view = { x: 0, y: 0 };
+            
+            mapNameInput.value = name;
+            filterTagInput.value = state.activeFilter || '';
+            render();
+            alert(`Mapa "${name}" carregado.`);
+        }
+    }
+
+    function deleteMap() {
+        const name = loadMapSelect.value;
+        if (!name) return;
+        if (confirm(`Tem certeza que deseja deletar o mapa "${name}"?`)) {
+            const allMaps = getSavedMaps();
+            delete allMaps[name];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allMaps));
+            alert(`Mapa "${name}" deletado.`);
+            updateMapList();
+        }
+    }
+
+    function updateMapList() {
+        const allMaps = getSavedMaps();
+        const mapNames = Object.keys(allMaps);
+        loadMapSelect.innerHTML = '';
+        if (mapNames.length === 0) {
+            loadMapSelect.add(new Option('Nenhum mapa salvo', ''));
+        } else {
+            mapNames.forEach(name => {
+                loadMapSelect.add(new Option(name, name));
+            });
+        }
+    }
+
+    saveMapBtn.addEventListener('click', saveCurrentMap);
+    loadMapBtn.addEventListener('click', loadMap);
+    deleteMapBtn.addEventListener('click', deleteMap);
+
+    // --- INICIALIZAÇÃO ---
+    window.onload = () => {
+        render();
+    };
+    
+    window.onresize = () => {
+        render();
+    };
+
+</script>
+
+</body>
+</html>
