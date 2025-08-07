@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashcards com Mapa Mental</title>
+    <title>Flashcards com Mapa Mental (Editável)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -29,7 +29,7 @@
         #canvas-wrapper {
             flex-grow: 1;
             position: relative;
-            cursor: grab; /* Cursor para indicar que o fundo é arrastável */
+            cursor: grab;
         }
         #canvas-wrapper:active {
             cursor: grabbing;
@@ -56,12 +56,13 @@
         }
         .flashcard {
             position: absolute;
-            width: 200px;
-            height: 120px;
             cursor: grab;
             perspective: 1000px;
             z-index: 5;
             border-radius: 8px;
+            /* Habilita o redimensionamento */
+            resize: both;
+            overflow: hidden; /* Esconde o handle de resize se não estiver sobre ele */
         }
         .flashcard-inner {
             position: relative;
@@ -100,6 +101,25 @@
             color: #4a5568;
             transform: rotateY(180deg);
         }
+        .card-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-bottom: 20px; /* Espaço para as tags */
+        }
+        /* Estilo para Textarea no modo de edição */
+        .edit-textarea {
+            width: 95%;
+            height: 95%;
+            border: 1px dashed #4a5568;
+            background-color: #f7fafc;
+            resize: none;
+            text-align: center;
+            font-family: inherit;
+            font-size: inherit;
+        }
         .flashcard-id {
             position: absolute;
             top: 4px;
@@ -127,6 +147,35 @@
             padding: 2px 5px;
             border-radius: 10px;
         }
+        /* Botões de Ação */
+        .card-actions {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            display: flex;
+            gap: 4px;
+            z-index: 15; /* Para ficar acima do conteúdo */
+        }
+        .action-btn {
+            background-color: rgba(255, 255, 255, 0.7);
+            border: 1px solid #cbd5e0;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .action-btn:hover {
+            background-color: rgba(237, 242, 247, 1);
+        }
+        .action-btn svg {
+            width: 14px;
+            height: 14px;
+            stroke: #4a5568;
+        }
     </style>
 </head>
 <body>
@@ -136,10 +185,9 @@
     <div id="controls" class="flex flex-col space-y-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">Mapa Mental</h1>
-            <p class="text-sm text-gray-500">Crie flashcards e conecte suas ideias.</p>
+            <p class="text-sm text-gray-500">Crie, conecte, edite e redimensione seus flashcards.</p>
         </div>
         
-        <!-- Adicionar Card -->
         <div class="p-4 bg-gray-100 rounded-lg">
             <h2 class="font-bold mb-2 text-gray-700">Adicionar Novo Card</h2>
             <form id="add-card-form" class="space-y-3">
@@ -150,7 +198,6 @@
             </form>
         </div>
         
-        <!-- Conectar Cards -->
         <div class="p-4 bg-gray-100 rounded-lg">
             <h2 class="font-bold mb-2 text-gray-700">Conectar Cards</h2>
             <form id="connect-cards-form" class="space-y-3">
@@ -163,7 +210,6 @@
             </form>
         </div>
 
-        <!-- Filtrar por Tag -->
         <div class="p-4 bg-gray-100 rounded-lg">
             <h2 class="font-bold mb-2 text-gray-700">Filtrar por Tag</h2>
             <div class="flex space-x-2">
@@ -173,7 +219,6 @@
             <button id="clear-filter-btn" class="w-full bg-gray-400 text-white p-2 rounded-md hover:bg-gray-500 transition-colors mt-2">Limpar Filtro</button>
         </div>
 
-        <!-- Gerenciar Mapas -->
         <div class="p-4 bg-gray-100 rounded-lg">
             <h2 class="font-bold mb-2 text-gray-700">Gerenciar Mapas</h2>
             <div class="space-y-3">
@@ -189,13 +234,11 @@
         </div>
     </div>
 
-    <!-- Canvas e SVG -->
     <div id="canvas-wrapper">
         <div id="canvas"></div>
         <svg id="connector-svg"></svg>
     </div>
 </div>
-
 
 <script>
     // --- ELEMENTOS DA DOM ---
@@ -216,16 +259,23 @@
     const loadMapSelect = document.getElementById('load-map-select');
     const clearCanvasBtn = document.getElementById('clear-canvas');
 
+    // --- ÍCONES SVG ---
+    const icons = {
+        delete: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>`,
+        edit: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>`,
+        save: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>`
+    };
+
     // --- ESTADO DA APLICAÇÃO ---
     let state = {
         cards: [],
         connections: [],
         nextCardId: 1,
         activeFilter: null,
-        view: { x: 0, y: 0 } // Posição da "câmera" ou "visão" do canvas
+        view: { x: 0, y: 0 }
     };
 
-    // --- LÓGICA DE INTERAÇÃO (ARRASTAR, VIRAR, PANORÂMICA) ---
+    // --- LÓGICA DE INTERAÇÃO ---
     let activeCard = null;
     let isDraggingCard = false;
     let isPanning = false;
@@ -235,22 +285,26 @@
     function onMouseDown(e) {
         if (e.button !== 0) return;
         
+        if (e.target.closest('.action-btn, .edit-textarea')) {
+            return;
+        }
+        const rect = e.target.getBoundingClientRect();
+        const isResizeHandle = (e.clientX > rect.right - 15) && (e.clientY > rect.bottom - 15);
+        if (isResizeHandle) return;
+
         const cardElement = e.target.closest('.flashcard');
         
         if (cardElement) {
-            // --- INICIAR ARRASTE DE CARD ---
             isDraggingCard = false;
             activeCard = cardElement;
             
             const cardRect = activeCard.getBoundingClientRect();
-            const wrapperRect = canvasWrapper.getBoundingClientRect();
             dragOffsetX = e.clientX - cardRect.left;
             dragOffsetY = e.clientY - cardRect.top;
 
             activeCard.style.cursor = 'grabbing';
             activeCard.style.zIndex = 10;
         } else {
-            // --- INICIAR PANORÂMICA (ARRASTAR O FUNDO) ---
             isPanning = true;
             panStartX = e.clientX;
             panStartY = e.clientY;
@@ -262,11 +316,9 @@
 
     function onMouseMove(e) {
         if (activeCard) {
-            // --- MOVENDO UM CARD ---
             isDraggingCard = true;
             
             const wrapperRect = canvasWrapper.getBoundingClientRect();
-            // Calcula a posição do card no espaço virtual do canvas, considerando o arraste e a visão atual
             let newX = e.clientX - wrapperRect.left - dragOffsetX + state.view.x;
             let newY = e.clientY - wrapperRect.top - dragOffsetY + state.view.y;
 
@@ -276,44 +328,44 @@
                 cardData.x = newX;
                 cardData.y = newY;
             }
-            // Atualiza a posição visual do card e as linhas de conexão
             activeCard.style.left = `${cardData.x - state.view.x}px`;
             activeCard.style.top = `${cardData.y - state.view.y}px`;
             renderConnections();
 
         } else if (isPanning) {
-            // --- MOVENDO O CANVAS (PANORÂMICA) ---
             const dx = e.clientX - panStartX;
             const dy = e.clientY - panStartY;
 
-            // Atualiza a posição da visão
             state.view.x -= dx;
             state.view.y -= dy;
             
-            // Reseta o ponto de início para o próximo movimento
             panStartX = e.clientX;
             panStartY = e.clientY;
             
-            // Re-renderiza tudo com a nova posição da visão
             render();
         }
     }
 
     function onMouseUp(e) {
         if (activeCard) {
-            // Se não arrastou o card (foi só um clique), vira o card
-            if (!isDraggingCard) {
-                const cardId = parseInt(activeCard.dataset.id);
-                const cardData = state.cards.find(c => c.id === cardId);
+            const cardId = parseInt(activeCard.dataset.id);
+            const cardData = state.cards.find(c => c.id === cardId);
+
+            if (cardData) {
+                cardData.width = activeCard.offsetWidth;
+                cardData.height = activeCard.offsetHeight;
+            }
+            
+            if (!isDraggingCard && !activeCard.dataset.editing) {
                 if (cardData) {
                     cardData.isFlipped = !cardData.isFlipped;
                     activeCard.classList.toggle('flipped');
                 }
             }
-            // Reseta o estado do card
             activeCard.style.cursor = 'grab';
             activeCard.style.zIndex = 5;
             activeCard = null;
+            renderConnections();
         }
         
         isPanning = false;
@@ -331,7 +383,6 @@
         renderConnections();
         updateSelects();
         updateMapList();
-        // Atualiza a posição do fundo para dar a ilusão de movimento
         canvas.style.backgroundPosition = `${-state.view.x}px ${-state.view.y}px`;
     }
 
@@ -347,22 +398,31 @@
             if (card.isFlipped) cardEl.classList.add('flipped');
             
             cardEl.dataset.id = card.id;
-            // A posição visual do card é sua posição virtual MENOS o deslocamento da visão
             cardEl.style.left = `${card.x - state.view.x}px`;
             cardEl.style.top = `${card.y - state.view.y}px`;
+            cardEl.style.width = `${card.width}px`;
+            cardEl.style.height = `${card.height}px`;
 
             const tagsHtml = card.tags.map(tag => `<span class="tag">${tag}</span>`).join('');
 
             cardEl.innerHTML = `
                 <div class="flashcard-inner">
                     <div class="flashcard-face flashcard-front">
+                        <div class="card-actions">
+                             <button class="action-btn btn-edit" title="Editar Card">${icons.edit}</button>
+                             <button class="action-btn btn-delete" title="Deletar Card">${icons.delete}</button>
+                        </div>
                         <span class="flashcard-id">${card.id}</span>
-                        <div class="flex-grow flex items-center justify-center">${card.pergunta}</div>
+                        <div class="card-content" data-face="front">${card.pergunta}</div>
                         <div class="tags-container">${tagsHtml}</div>
                     </div>
                     <div class="flashcard-face flashcard-back">
+                        <div class="card-actions">
+                             <button class="action-btn btn-edit" title="Editar Card">${icons.edit}</button>
+                             <button class="action-btn btn-delete" title="Deletar Card">${icons.delete}</button>
+                        </div>
                         <span class="flashcard-id">${card.id}</span>
-                        <div class="flex-grow flex items-center justify-center">${card.resposta}</div>
+                        <div class="card-content" data-face="back">${card.resposta}</div>
                         <div class="tags-container">${tagsHtml}</div>
                     </div>
                 </div>
@@ -388,11 +448,10 @@
                 if (fromCard && toCard) {
                     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                     
-                    // As coordenadas da linha também precisam considerar o deslocamento da visão
-                    const x1 = (fromCard.x + 100) - state.view.x; // 100 = 200/2 (metade da largura do card)
-                    const y1 = (fromCard.y + 60) - state.view.y;  // 60 = 120/2 (metade da altura do card)
-                    const x2 = (toCard.x + 100) - state.view.x;
-                    const y2 = (toCard.y + 60) - state.view.y;
+                    const x1 = (fromCard.x + fromCard.width / 2) - state.view.x;
+                    const y1 = (fromCard.y + fromCard.height / 2) - state.view.y;
+                    const x2 = (toCard.x + toCard.width / 2) - state.view.x;
+                    const y2 = (toCard.y + toCard.height / 2) - state.view.y;
 
                     line.setAttribute('x1', x1);
                     line.setAttribute('y1', y1);
@@ -415,7 +474,7 @@
         });
     }
 
-    // --- MANIPULAÇÃO DE EVENTOS DOS CONTROLES ---
+    // --- MANIPULAÇÃO DE EVENTOS DOS CONTROLES E CARDS ---
     addCardForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const pergunta = document.getElementById('pergunta').value;
@@ -433,9 +492,10 @@
             pergunta,
             resposta,
             tags,
-            // Posiciona o novo card no centro da visão atual
             x: (canvasWrapper.clientWidth / 2 - 100) + state.view.x,
             y: (canvasWrapper.clientHeight / 2 - 60) + state.view.y,
+            width: 200,
+            height: 120,
             isFlipped: false
         };
 
@@ -443,6 +503,73 @@
         addCardForm.reset();
         render();
     });
+
+    canvas.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.btn-delete');
+        const editBtn = e.target.closest('.btn-edit');
+
+        if (deleteBtn) {
+            const cardEl = deleteBtn.closest('.flashcard');
+            const cardId = parseInt(cardEl.dataset.id);
+            deleteCard(cardId);
+            return;
+        }
+
+        if (editBtn) {
+            const cardEl = editBtn.closest('.flashcard');
+            toggleEditMode(cardEl);
+            return;
+        }
+    });
+
+    function deleteCard(cardId) {
+        state.cards = state.cards.filter(c => c.id !== cardId);
+        state.connections = state.connections.filter(c => c.from !== cardId && c.to !== cardId);
+        render();
+    }
+
+    function toggleEditMode(cardEl) {
+        const cardId = parseInt(cardEl.dataset.id);
+        const cardData = state.cards.find(c => c.id === cardId);
+        const isEditing = cardEl.dataset.editing === 'true';
+
+        const frontContent = cardEl.querySelector('.card-content[data-face="front"]');
+        const backContent = cardEl.querySelector('.card-content[data-face="back"]');
+        const editBtns = cardEl.querySelectorAll('.btn-edit');
+
+        if (isEditing) {
+            // --- SALVAR MUDANÇAS ---
+            const newPergunta = frontContent.querySelector('textarea').value;
+            const newResposta = backContent.querySelector('textarea').value;
+
+            cardData.pergunta = newPergunta;
+            cardData.resposta = newResposta;
+
+            cardEl.removeAttribute('data-editing');
+            editBtns.forEach(btn => {
+                btn.innerHTML = icons.edit;
+                btn.title = "Editar Card";
+            });
+            
+            frontContent.innerHTML = cardData.pergunta;
+            backContent.innerHTML = cardData.resposta;
+
+        } else {
+            // --- ENTRAR NO MODO DE EDIÇÃO ---
+            cardEl.dataset.editing = 'true';
+            editBtns.forEach(btn => {
+                btn.innerHTML = icons.save;
+                btn.title = "Salvar Mudanças";
+            });
+
+            frontContent.innerHTML = `<textarea class="edit-textarea">${cardData.pergunta}</textarea>`;
+            backContent.innerHTML = `<textarea class="edit-textarea">${cardData.resposta}</textarea>`;
+            
+            cardEl.querySelectorAll('.edit-textarea').forEach(ta => {
+                ta.addEventListener('mousedown', e => e.stopPropagation());
+            });
+        }
+    }
 
     connectCardsForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -461,8 +588,6 @@
     });
     
     clearCanvasBtn.addEventListener('click', () => {
-        // CORREÇÃO: Removido o `if (confirm(...))` que pode ser bloqueado.
-        // A ação agora é imediata.
         state = { cards: [], connections: [], nextCardId: 1, activeFilter: null, view: { x: 0, y: 0 } };
         mapNameInput.value = '';
         filterTagInput.value = '';
@@ -484,7 +609,7 @@
     });
 
     // --- PERSISTÊNCIA (localStorage) ---
-    const STORAGE_KEY = 'flashcardMindMaps_v3';
+    const STORAGE_KEY = 'flashcardMindMaps_v4';
 
     function getSavedMaps() {
         return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
@@ -510,9 +635,12 @@
         const allMaps = getSavedMaps();
         if (allMaps[name]) {
             state = allMaps[name];
-            // Garante compatibilidade com mapas antigos
-            if (state.activeFilter === undefined) state.activeFilter = null;
-            if (state.view === undefined) state.view = { x: 0, y: 0 };
+            state.activeFilter = state.activeFilter === undefined ? null : state.activeFilter;
+            state.view = state.view === undefined ? { x: 0, y: 0 } : state.view;
+            state.cards.forEach(c => {
+                c.width = c.width || 200;
+                c.height = c.height || 120;
+            });
             
             mapNameInput.value = name;
             filterTagInput.value = state.activeFilter || '';
@@ -524,13 +652,11 @@
     function deleteMap() {
         const name = loadMapSelect.value;
         if (!name) return;
-        if (confirm(`Tem certeza que deseja deletar o mapa "${name}"?`)) {
-            const allMaps = getSavedMaps();
-            delete allMaps[name];
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(allMaps));
-            alert(`Mapa "${name}" deletado.`);
-            updateMapList();
-        }
+        const allMaps = getSavedMaps();
+        delete allMaps[name];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allMaps));
+        alert(`Mapa "${name}" deletado.`);
+        updateMapList();
     }
 
     function updateMapList() {
