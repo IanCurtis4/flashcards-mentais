@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashcards com Mapa Mental (Editável)</title>
+    <title>Flashcards com Mapa Mental (PWA)</title>
+    
+    <!-- PWA Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4A5568">
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -60,9 +65,8 @@
             perspective: 1000px;
             z-index: 5;
             border-radius: 8px;
-            /* Habilita o redimensionamento */
             resize: both;
-            overflow: hidden; /* Esconde o handle de resize se não estiver sobre ele */
+            overflow: hidden;
         }
         .flashcard-inner {
             position: relative;
@@ -107,9 +111,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding-bottom: 20px; /* Espaço para as tags */
+            padding-bottom: 20px;
         }
-        /* Estilo para Textarea no modo de edição */
         .edit-textarea {
             width: 95%;
             height: 95%;
@@ -147,14 +150,13 @@
             padding: 2px 5px;
             border-radius: 10px;
         }
-        /* Botões de Ação */
         .card-actions {
             position: absolute;
             top: 4px;
             right: 4px;
             display: flex;
             gap: 4px;
-            z-index: 15; /* Para ficar acima do conteúdo */
+            z-index: 15;
         }
         .action-btn {
             background-color: rgba(255, 255, 255, 0.7);
@@ -679,6 +681,15 @@
     // --- INICIALIZAÇÃO ---
     window.onload = () => {
         render();
+
+        // --- REGISTRO DO SERVICE WORKER ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(registration => {
+                console.log('Service Worker registrado com sucesso no escopo:', registration.scope);
+            }).catch(error => {
+                console.log('Falha no registro do Service Worker:', error);
+            });
+        }
     };
     
     window.onresize = () => {
