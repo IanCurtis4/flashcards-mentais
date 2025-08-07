@@ -15,7 +15,7 @@ O projeto foi construído com HTML, CSS (TailwindCSS) e JavaScript puros, sem a 
 O aplicativo oferece uma gama de funcionalidades para ajudar nos seus estudos e organização de ideias:
 
 * **Criação de Flashcards:** Adicione novos cards com uma pergunta (frente) e uma resposta (verso).
-* **Tags para Organização:** Atribua tags aos seus cards (ex: `física`, `história`) para facilitar a categorização.
+* **Tags para Organização:** Atribua tags aos seus cards (ex: `fisica`, `quimica`) para facilitar a categorização.
 * **Mapa Mental Interativo:**
     * Arraste e posicione os cards livremente pela tela.
     * Redimensione os cards para dar mais ou menos destaque a certos tópicos.
@@ -24,7 +24,7 @@ O aplicativo oferece uma gama de funcionalidades para ajudar nos seus estudos e 
 * **Edição e Exclusão:** Edite o conteúdo de um card diretamente na tela ou remova-o.
 * **Filtragem por Tags:** Visualize apenas os cards que pertencem a uma determinada tag.
 * **Gerenciamento de Mapas:**
-    * Salve o estado atual do seu mapa mental (posição dos cards, conexões, etc.) no armazenamento local do seu navegador.
+    * Salve o estado atual do seu mapa mental no armazenamento local do seu navegador.
     * Carregue mapas salvos anteriormente.
     * Delete mapas que não são mais necessários.
 * **Funcionamento Offline:** Graças ao Service Worker, o aplicativo pode ser carregado e utilizado mesmo sem conexão com a internet após a primeira visita.
@@ -44,7 +44,7 @@ Se você quiser executar o projeto em sua própria máquina, siga estes passos:
     ```
 
 2.  **Abra o arquivo `index.html`:**
-    Como o projeto é feito com tecnologias web front-end puras, você não precisa de um servidor complexo. No entanto, para que o Service Worker (`sw.js`) funcione corretamente (especialmente o cache de arquivos), é recomendado usar um servidor local simples.
+    Como o projeto é feito com tecnologias web front-end puras, você não precisa de um servidor complexo. No entanto, para que o Service Worker (`sw.js`) funcione corretamente, é recomendado usar um servidor local simples.
 
     A maneira mais fácil é usar uma extensão como o **Live Server** no Visual Studio Code. Com ela instalada, basta clicar com o botão direito no arquivo `index.html` e selecionar "Open with Live Server".
 
@@ -57,11 +57,26 @@ Se você quiser executar o projeto em sua própria máquina, siga estes passos:
 
 ### Instalando o Aplicativo (PWA)
 
-Após abrir a aplicação no seu navegador (como o Google Chrome), você verá um ícone no canto direito da barra de endereço para instalar o aplicativo.
+Por ser um Progressive Web App, você pode instalá-lo no seu dispositivo para um acesso mais rápido e uma experiência similar a um aplicativo nativo.
 
-1.  Clique no ícone de instalação.
-2.  Confirme a instalação.
-3.  O aplicativo será "instalado" no seu computador e um atalho será criado na sua área de trabalho ou menu de aplicativos. Agora você pode iniciá-lo como um programa normal, em sua própria janela.
+#### **No Computador (Chrome, Edge)**
+1.  Abra a aplicação no seu navegador.
+2.  Procure por um ícone na barra de endereço (geralmente um monitor com uma seta para baixo).
+3.  Clique neste ícone e depois em "Instalar".
+
+#### **No Android (Chrome)**
+1.  Acesse o link da aplicação usando o navegador Chrome.
+2.  O navegador pode exibir um pop-up na parte inferior da tela sugerindo "Adicionar à tela inicial". Se aparecer, basta tocar nele.
+3.  Caso não apareça, toque no ícone de menu (três pontos verticais) no canto superior direito.
+4.  No menu, selecione a opção **Instalar aplicativo** ou **Adicionar à tela inicial**.
+5.  Confirme a instalação. O ícone do app aparecerá na sua lista de aplicativos.
+
+#### **No iOS (Safari)**
+1.  Acesse o link da aplicação usando o navegador Safari.
+2.  Toque no ícone de **Compartilhamento** (um quadrado com uma seta para cima) na barra de menu inferior.
+3.  Role para baixo e selecione a opção **Adicionar à Tela de Início**.
+4.  Edite o nome do atalho se desejar e toque em **Adicionar** no canto superior direito.
+5.  O ícone do app aparecerá na sua tela de início, como qualquer outro aplicativo.
 
 ## 🛠️ Como Funciona
 
@@ -73,7 +88,7 @@ O aplicativo é composto por três arquivos principais:
     * **Interatividade:** Manipuladores de eventos (`event listeners`) capturam as ações do usuário (cliques, arrastar) para atualizar o estado e a interface.
     * **Persistência:** Os mapas são salvos no `localStorage` do navegador, permitindo que os dados persistam entre as sessões.
 
-* `manifest.json`: É um arquivo de configuração que descreve o Progressive Web App. Ele informa ao navegador o nome do aplicativo, os ícones a serem usados, a cor do tema e como ele deve se comportar ao ser instalado.
+* `manifest.json`: É um arquivo de configuração que descreve o Progressive Web App. Ele informa ao navegador o nome do aplicativo (`Mapa Mental com Flashcards`), os ícones a serem usados, a cor do tema e como ele deve se comportar ao ser instalado.
 
 * `sw.js` (Service Worker): É um script que o navegador executa em segundo plano. Neste projeto, ele é responsável por armazenar em cache os arquivos essenciais (`index.html`). Isso permite que o aplicativo seja carregado instantaneamente em visitas futuras e funcione mesmo quando o usuário estiver offline.
 
