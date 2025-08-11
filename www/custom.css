@@ -60,6 +60,17 @@ body {
     border-radius: 8px;
     /* resize: both; */
     overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.2s ease;
+}
+
+.flip-animation {
+    transform: scale(0.95);
+    box-shadow: 0 0 15px rgba(66, 153, 225, 0.5);
+}
+
+.action-btn:active {
+    transform: scale(0.9);
+    transition: transform 0.1s ease;
 }
 
 /* Estilo para o nosso pegador customizado */

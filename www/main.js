@@ -48,6 +48,139 @@ let activeCard;
 // Adicionar novas variáveis de estado
 let initialCardX, initialCardY;
 let isCardFlipped = false; // <-- Variável para controlar o estado de flip
+let lastTap = { time: 0, target: null };
+let tapTimeout;
+let isTouchInteraction = false;
+
+// --- Atualizar o sistema de eventos ---
+function setupEventListeners() {
+    canvas.addEventListener('mousedown', onPointerStart);
+    canvas.addEventListener('touchstart', onPointerStart, { passive: false });
+    
+    //canvas.addEventListener('click', onPointerClick);
+    canvas.addEventListener('touchend', onPointerEnd);
+}
+
+// --- Função unificada para início de interação ---
+function onPointerStart(e) {
+    // Determinar se é uma interação por toque
+    isTouchInteraction = e.type === 'touchstart';
+    
+    // Chamar a lógica de drag/pan/resize existente
+    onDragStart(e);
+}
+
+// --- Função para lidar com clicks/taps ---
+function onPointerClick(e) {
+    // Ignorar eventos de clique se for uma interação por toque
+    if (isTouchInteraction) return;
+    
+    handleCardInteraction(e);
+}
+
+// --- Função para lidar com final de toque ---
+function onPointerEnd(e) {
+    if (isDraggingCard || isPanning || isResizing) return;
+    
+    const cardElement = e.target.closest('.flashcard');
+    if (!cardElement) return;
+    
+    // Tentar detectar double-tap
+    if (handleDoubleTap(e, cardElement)) {
+        return;
+    }
+    
+    // Se não foi double-tap, verificar botões
+    const touch = e.changedTouches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    
+    // Verificar se tocou em botões de ação
+    const deleteBtn = target.closest('.btn-delete');
+    const editBtn = target.closest('.btn-edit');
+    
+    if (deleteBtn) {
+        const cardEl = deleteBtn.closest('.flashcard');
+        const cardId = parseInt(cardEl.dataset.id);
+        deleteCard(cardId);
+        return;
+    }
+
+    if (editBtn) {
+        const cardEl = editBtn.closest('.flashcard');
+        toggleEditMode(cardEl);
+        return;
+    }
+}
+
+// --- Função unificada para interações com cards ---
+function handleCardInteraction(e) {
+    // Ignorar em dispositivos touch
+    if ('ontouchstart' in window) return;
+    
+    // Comportamento original para desktop
+    const deleteBtn = e.target.closest('.btn-delete');
+    const editBtn = e.target.closest('.btn-edit');
+    const cardElement = e.target.closest('.flashcard');
+    
+    if (deleteBtn) {
+        const cardEl = deleteBtn.closest('.flashcard');
+        const cardId = parseInt(cardEl.dataset.id);
+        deleteCard(cardId);
+        return;
+    }
+
+    if (editBtn) {
+        const cardEl = editBtn.closest('.flashcard');
+        toggleEditMode(cardEl);
+        return;
+    }
+    
+    if (cardElement) {
+        const cardId = parseInt(cardElement.dataset.id);
+        const cardData = state.cards.find(c => c.id === cardId);
+        
+        if (cardData && !cardElement.dataset.editing) {
+            cardData.isFlipped = !cardData.isFlipped;
+            cardElement.classList.toggle('flipped');
+        }
+    }
+}
+
+// --- Atualizar a função handleDoubleTap ---
+function handleDoubleTap(e, cardElement) {
+    const currentTime = Date.now();
+    const tapTarget = e.target;
+    
+    // Verificar se é o mesmo card e intervalo curto
+    if (lastTap.target === tapTarget && (currentTime - lastTap.time) < 300) {
+        clearTimeout(tapTimeout);
+        lastTap = { time: 0, target: null };
+        
+        // Flipar o card
+        const cardId = parseInt(cardElement.dataset.id);
+        const cardData = state.cards.find(c => c.id === cardId);
+        
+        if (cardData && !cardElement.dataset.editing) {
+            cardData.isFlipped = !cardData.isFlipped;
+            cardElement.classList.toggle('flipped');
+            
+            // Feedback visual
+            cardElement.classList.add('flip-animation');
+            setTimeout(() => {
+                cardElement.classList.remove('flip-animation');
+            }, 100);
+        }
+        return true; // Double-tap detectado
+    }
+    
+    // Primeiro toque
+    lastTap = { time: currentTime, target: tapTarget };
+    tapTimeout = setTimeout(() => {
+        lastTap = { time: 0, target: null }; // Resetar após timeout
+    }, 300);
+    
+    return false; // Não foi double-tap
+}
 
 // Função auxiliar para obter coordenadas de mouse ou toque
 function getEventCoords(e) {
@@ -60,6 +193,9 @@ function getEventCoords(e) {
 function onDragStart(e) {
     if (e.type === 'mousedown' && e.button !== 0) return;
     if (e.target.closest('.action-btn, .edit-textarea')) return;
+    if (e.type === 'touchstart' && (Date.now() - lastTap) < 350) {
+        return; // Ignorar arrastes que acontecem logo após um double-tap
+    }
 
     const coords = getEventCoords(e);
     const cardElement = e.target.closest('.flashcard');
@@ -221,6 +357,7 @@ function onDragEnd(e) {
     isPanning = false;
     isDraggingCard = false;
     isResizing = false; // <-- RESETAR O NOSSO ESTADO
+    isTouchInteraction = false; // Adicionar esta linha
 
     document.removeEventListener('mousemove', onDragMove);
     document.removeEventListener('touchmove', onDragMove);
@@ -361,24 +498,6 @@ addCardForm.addEventListener('submit', (e) => {
     render();
 });
 
-canvas.addEventListener('click', (e) => {
-    const deleteBtn = e.target.closest('.btn-delete');
-    const editBtn = e.target.closest('.btn-edit');
-
-    if (deleteBtn) {
-        const cardEl = deleteBtn.closest('.flashcard');
-        const cardId = parseInt(cardEl.dataset.id);
-        deleteCard(cardId);
-        return;
-    }
-
-    if (editBtn) {
-        const cardEl = editBtn.closest('.flashcard');
-        toggleEditMode(cardEl);
-        return;
-    }
-});
-
 function deleteCard(cardId) {
     state.cards = state.cards.filter(c => c.id !== cardId);
     state.connections = state.connections.filter(c => c.from !== cardId && c.to !== cardId);
@@ -413,6 +532,10 @@ function toggleEditMode(cardEl) {
 
     } else {
         // --- ENTRAR NO MODO DE EDIÇÃO ---
+        cardEl.classList.add('flip-animation');
+        setTimeout(() => {
+            cardEl.classList.remove('flip-animation');
+        }, 100);
         cardEl.dataset.editing = 'true';
         editBtns.forEach(btn => {
             btn.innerHTML = icons.save;
@@ -582,6 +705,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const menuToggleBtn = document.getElementById('menu-toggle-btn');
     const controlsPanel = document.getElementById('controls');
     const canvasWrapper = document.getElementById('canvas-wrapper');
+
+    setupEventListeners();
 
     if (menuToggleBtn) {
         menuToggleBtn.addEventListener('click', (e) => {
