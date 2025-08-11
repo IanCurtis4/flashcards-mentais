@@ -1,101 +1,130 @@
-# Mapa Mental com Flashcards (PWA)
-
-Um aplicativo de mapa mental com flashcards que funciona offline, permitindo que você crie, conecte e estude seus cards de forma visual e interativa.
-
-![Exemplo de uso do aplicativo de Mapa Mental com Flashcards](https://placehold.co/600x400/e2e8f0/4A5568?text=Exemplo+de+Uso+do+App)
-
-## 🌟 Sobre o Projeto
-
-Este é um Progressive Web App (PWA) de código aberto que combina a funcionalidade de mapas mentais com flashcards. A aplicação permite que os usuários criem "cards" com uma pergunta na frente e uma resposta no verso. Esses cards podem ser posicionados livremente em uma tela (canvas), redimensionados, conectados uns aos outros para criar um mapa mental e filtrados por tags.
-
-O projeto foi construído com HTML, CSS (TailwindCSS) e JavaScript puros, sem a necessidade de frameworks, e utiliza um Service Worker para permitir o funcionamento offline.
-
-## ✨ Funcionalidades
-
-O aplicativo oferece uma gama de funcionalidades para ajudar nos seus estudos e organização de ideias:
-
-* **Criação de Flashcards:** Adicione novos cards com uma pergunta (frente) e uma resposta (verso).
-* **Tags para Organização:** Atribua tags aos seus cards (ex: `fisica`, `quimica`) para facilitar a categorização.
-* **Mapa Mental Interativo:**
-    * Arraste e posicione os cards livremente pela tela.
-    * Redimensione os cards para dar mais ou menos destaque a certos tópicos.
-    * Crie conexões visuais (linhas) entre os cards para representar relacionamentos.
-* **Virar os Cards:** Clique em um card para virá-lo e ver a resposta.
-* **Edição e Exclusão:** Edite o conteúdo de um card diretamente na tela ou remova-o.
-* **Filtragem por Tags:** Visualize apenas os cards que pertencem a uma determinada tag.
-* **Gerenciamento de Mapas:**
-    * Salve o estado atual do seu mapa mental no armazenamento local do seu navegador.
-    * Carregue mapas salvos anteriormente.
-    * Delete mapas que não são mais necessários.
-* **Funcionamento Offline:** Graças ao Service Worker, o aplicativo pode ser carregado e utilizado mesmo sem conexão com a internet após a primeira visita.
-* **Instalação (PWA):** O aplicativo pode ser "instalado" no seu computador ou celular, funcionando como um aplicativo nativo.
-
-## 🚀 Como Usar
-
-Não é necessário instalar nada para usar a aplicação. Basta acessar o link onde o projeto está hospedado.
-
-### Executando Localmente
-
-Se você quiser executar o projeto em sua própria máquina, siga estes passos:
-
-1.  **Clone o repositório:**
-    ```bash
-    git clone [https://github.com/seu-usuario/seu-repositorio.git](https://github.com/seu-usuario/seu-repositorio.git)
-    ```
-
-2.  **Abra o arquivo `index.html`:**
-    Como o projeto é feito com tecnologias web front-end puras, você não precisa de um servidor complexo. No entanto, para que o Service Worker (`sw.js`) funcione corretamente, é recomendado usar um servidor local simples.
-
-    A maneira mais fácil é usar uma extensão como o **Live Server** no Visual Studio Code. Com ela instalada, basta clicar com o botão direito no arquivo `index.html` e selecionar "Open with Live Server".
-
-    Se não estiver usando o VS Code, você pode iniciar um servidor simples com Python (se tiver o Python instalado):
-    ```bash
-    # No terminal, dentro da pasta do projeto
-    python -m http.server
-    ```
-    Depois, abra seu navegador e acesse `http://localhost:8000`.
-
-### Instalando o Aplicativo (PWA)
-
-Por ser um Progressive Web App, você pode instalá-lo no seu dispositivo para um acesso mais rápido e uma experiência similar a um aplicativo nativo.
-
-#### **No Computador (Chrome, Edge)**
-1.  Abra a aplicação no seu navegador.
-2.  Procure por um ícone na barra de endereço (geralmente um monitor com uma seta para baixo).
-3.  Clique neste ícone e depois em "Instalar".
-
-#### **No Android (Chrome)**
-1.  Acesse o link da aplicação usando o navegador Chrome.
-2.  O navegador pode exibir um pop-up na parte inferior da tela sugerindo "Adicionar à tela inicial". Se aparecer, basta tocar nele.
-3.  Caso não apareça, toque no ícone de menu (três pontos verticais) no canto superior direito.
-4.  No menu, selecione a opção **Instalar aplicativo** ou **Adicionar à tela inicial**.
-5.  Confirme a instalação. O ícone do app aparecerá na sua lista de aplicativos.
-
-#### **No iOS (Safari)**
-1.  Acesse o link da aplicação usando o navegador Safari.
-2.  Toque no ícone de **Compartilhamento** (um quadrado com uma seta para cima) na barra de menu inferior.
-3.  Role para baixo e selecione a opção **Adicionar à Tela de Início**.
-4.  Edite o nome do atalho se desejar e toque em **Adicionar** no canto superior direito.
-5.  O ícone do app aparecerá na sua tela de início, como qualquer outro aplicativo.
-
-## 🛠️ Como Funciona
-
-O aplicativo é composto por três arquivos principais:
-
-* `index.html`: Contém toda a estrutura (HTML), o estilo (CSS com TailwindCSS) e a lógica de interação (JavaScript) da aplicação.
-    * **Gerenciamento de Estado:** Um objeto JavaScript `state` armazena a posição, o conteúdo, as conexões e outras propriedades dos cards.
-    * **Renderização:** As funções de renderização leem o objeto `state` e desenham os cards e as conexões na tela.
-    * **Interatividade:** Manipuladores de eventos (`event listeners`) capturam as ações do usuário (cliques, arrastar) para atualizar o estado e a interface.
-    * **Persistência:** Os mapas são salvos no `localStorage` do navegador, permitindo que os dados persistam entre as sessões.
-
-* `manifest.json`: É um arquivo de configuração que descreve o Progressive Web App. Ele informa ao navegador o nome do aplicativo (`Mapa Mental com Flashcards`), os ícones a serem usados, a cor do tema e como ele deve se comportar ao ser instalado.
-
-* `sw.js` (Service Worker): É um script que o navegador executa em segundo plano. Neste projeto, ele é responsável por armazenar em cache os arquivos essenciais (`index.html`). Isso permite que o aplicativo seja carregado instantaneamente em visitas futuras e funcione mesmo quando o usuário estiver offline.
-
-## 🤝 Contribuições
-
-Este é um projeto de código aberto e contribuições são bem-vindas. Se você tiver ideias para novas funcionalidades, melhorias ou encontrar algum bug, sinta-se à vontade para abrir uma *Issue* ou enviar um *Pull Request*.
-
-## 📄 Licença
-
-Este projeto é de código aberto e pode ser usado livremente. Considere adicionar uma licença (como a [MIT License](https://opensource.org/licenses/MIT)) para deixar isso claro.
+# Flashcard Mind Map
+Um aplicativo que combina mapas mentais com flashcards, permitindo criar, conectar e revisar cards de estudo de forma interativa. O projeto usa Capacitor para empacotamento como aplicativo Android.
+![Exemplo de Uso](www/assets/icons/192.png)
+## Pré-requisitos
+- [Node.js](https://nodejs.org/) (v18 ou superior)
+- [npm](https://www.npmjs.com/) (v9 ou superior)
+- [Android Studio](https://developer.android.com/studio) (para builds Android)
+- Java JDK 17
+## Instalação
+1. Clone o repositório:
+```bash
+git clone https://github.com/seu-usuario/flashcard-mind-map.git
+cd flashcard-mind-map
+```
+2. Instale as dependências:
+```bash
+npm install
+```
+## Desenvolvimento
+Para iniciar o servidor de desenvolvimento com hot-reload:
+```bash
+npm run dev
+```
+O aplicativo estará disponível em: `http://localhost:3000`
+## Construindo para Produção
+Para criar uma build otimizada:
+```bash
+npm run build
+```
+Os arquivos de produção serão gerados na pasta `dist`.
+## Configuração para Android
+### Adicionando suporte a Android
+```bash
+npx cap add android
+```
+### Sincronizando com o projeto Android
+```bash
+npm run build
+npx cap sync
+```
+### Abrindo no Android Studio
+```bash
+npx cap open android
+```
+## Executando no Dispositivo
+1. Conecte seu dispositivo Android via USB com depuração USB ativada.
+2. No Android Studio:
+   - Selecione seu dispositivo no menu de dispositivos.
+   - Clique no botão "Run" (▶️).
+3. Ou via linha de comando:
+```bash
+./gradlew installDebug
+```
+## Estrutura de Pastas
+```
+.
+├── android/              # Projeto Android do Capacitor
+├── dist/                 # Builds de produção
+├── node_modules/         # Dependências
+├── public/               # Arquivos públicos
+│   ├── icons/            # Ícones do aplicativo
+│   │   ├── 192.png
+│   │   └── 512.png
+│   └── vite.svg
+├── src/                  # Código fonte
+│   ├── assets/           
+│   │   ├── fonts/        # Fontes customizadas
+│   │   │   └── inter.css
+│   │   ├── custom.css    # Estilos customizados
+│   │   ├── index.html    # Página principal
+│   │   ├── main.js       # Lógica principal
+│   │   ├── manifest.json # Config PWA
+│   │   ├── styles.css    # Estilos globais
+│   │   └── sw.js         # Service Worker
+├── .gitignore
+├── capacitor.config.ts   # Configuração do Capacitor
+├── package-lock.json
+├── package.json
+├── tailwind.config.js    # Config TailwindCSS
+└── vite.config.js        # Config Vite
+```
+## Comandos Úteis
+| Comando                | Descrição                                  |
+|------------------------|--------------------------------------------|
+| `npm run dev`          | Inicia servidor de desenvolvimento         |
+| `npm run build`        | Cria build de produção                     |
+| `npx cap sync`         | Sincroniza código com projetos nativos     |
+| `npx cap open android` | Abre projeto Android no Android Studio     |
+| `npx cap run android`  | Executa app no dispositivo/emulador conectado |
+## Configuração do Capacitor
+O arquivo `capacitor.config.ts` contém as configurações principais:
+```typescript
+import { CapacitorConfig } from '@capacitor/cli';
+const config: CapacitorConfig = {
+  appId: 'com.example.flashcards',
+  appName: 'Flashcard Mind Map',
+  webDir: 'dist',
+  bundledWebRuntime: false,
+  plugins: {
+    // Plugins adicionais podem ser configurados aqui
+  },
+};
+export default config;
+```
+## Personalização
+1. **Ícones**: Substitua os arquivos em `www/assets/icons/`
+2. **Cores**: Modifique as variáveis em `www/assets/custom.css`
+3. **Comportamento**: Edite os handlers em `src/main.js`
+## Solução de Problemas Comuns
+**Problema:** Erros ao executar `npx cap sync`  
+**Solução:** Certifique-se que executou `npm run build` antes
+**Problema:** Aplicativo não atualiza no dispositivo  
+**Solução:** Execute sequência completa:
+```bash
+npm run build
+npx cap sync
+npx cap run android
+```
+**Problema:** Erros de estilo após instalação  
+**Solução:** Recrie as classes Tailwind:
+```bash
+npm run build
+```
+## Contribuição
+Contribuições são bem-vindas! Siga os passos:
+1. Faça um fork do projeto
+2. Crie sua branch (`git checkout -b feature/nova-feature`)
+3. Commit suas mudanças (`git commit -am 'Adiciona nova feature'`)
+4. Push para a branch (`git push origin feature/nova-feature`)
+5. Abra um Pull Request

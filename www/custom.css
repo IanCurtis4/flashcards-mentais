@@ -1,0 +1,261 @@
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f0f2f5;
+    color: #1a202c;
+    overflow: hidden;
+}
+
+#app-container {
+    display: flex;
+    height: 100vh;
+}
+
+#controls {
+    width: 320px;
+    min-width: 320px;
+    background-color: #ffffff;
+    padding: 24px;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+    z-index: 10;
+    overflow-y: auto;
+}
+
+#canvas-wrapper {
+    flex-grow: 1;
+    position: relative;
+    cursor: grab;
+}
+
+#canvas-wrapper:active {
+    cursor: grabbing;
+}
+
+#canvas {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: #e2e8f0;
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+    background-size: 20px 20px;
+    overflow: hidden;
+}
+
+#connector-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.flashcard {
+    position: absolute;
+    cursor: grab;
+    perspective: 1000px;
+    z-index: 5;
+    border-radius: 8px;
+    /* resize: both; */
+    overflow: hidden;
+}
+
+/* Estilo para o nosso pegador customizado */
+.resize-handle {
+    position: absolute;
+    bottom: -3px;
+    right: 0; /* Simplesmente posicione no canto de cada face */
+    width: 23px;
+    height: 20px;
+    z-index: 20;
+    background: linear-gradient(135deg, transparent 0, transparent 65%, rgba(74, 85, 104, 0.4) 65%, rgba(74, 85, 104, 0.4) 85%, transparent 85%);
+
+    /* A direção do cursor dependerá da face */
+    cursor: nwse-resize; 
+}
+
+/* O handle do verso precisa do cursor invertido */
+.flashcard-back .resize-handle {
+    left: 0;
+    transform: rotateY(180deg);
+}
+
+.flashcard.flipped .resize-handle {
+    cursor: nesw-resize;
+}
+
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+.flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+}
+
+.flashcard-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    text-align: center;
+    border-radius: 8px;
+    border: 1px solid #cbd5e0;
+    overflow-wrap: break-word;
+}
+
+.flashcard-front {
+    background-color: #ffffff;
+    color: #2d3748;
+}
+
+.flashcard-back {
+    background-color: #edf2f7;
+    color: #4a5568;
+    transform: rotateY(180deg);
+}
+
+.card-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 20px;
+}
+
+.edit-textarea {
+    width: 95%;
+    height: 95%;
+    border: 1px dashed #4a5568;
+    background-color: #f7fafc;
+    resize: none;
+    text-align: center;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.flashcard-id {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    font-size: 10px;
+    background: #4a5568;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.tags-container {
+    position: absolute;
+    bottom: 5px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding: 0 5px;
+}
+
+.tag {
+    background-color: #dbeafe;
+    color: #1e40af;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 10px;
+}
+
+.card-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    gap: 4px;
+    z-index: 15;
+}
+
+.action-btn {
+    background-color: rgba(255, 255, 255, 0.7);
+    border: 1px solid #cbd5e0;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.action-btn:hover {
+    background-color: rgba(237, 242, 247, 1);
+}
+
+.action-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: #4a5568;
+}
+
+/* Estilo base para o botão do menu (mobile) */
+#menu-toggle-btn {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    z-index: 20; /* Garante que fique acima de outros elementos */
+    display: none; /* Escondido por padrão em telas grandes */
+    background-color: #ffffff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* --- Media Query para Dispositivos Móveis (Ex: telas menores que 768px) --- */
+@media (max-width: 768px) {
+    
+    /* Faz o botão do menu aparecer */
+    #menu-toggle-btn {
+        display: flex;
+    }
+
+    /* Modifica o container principal para empilhar os elementos */
+    #app-container {
+        flex-direction: column;
+    }
+
+    /* Estiliza o painel de controle para ser um menu off-canvas */
+    #controls {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 300px; /* Um pouco menor para não ocupar a tela toda */
+        height: 100%;
+        transform: translateX(-100%); /* Esconde o menu para a esquerda */
+        transition: transform 0.3s ease-in-out;
+        z-index: 100; /* Garante que o menu fique acima do canvas */
+        box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+        border-right: 1px solid #e2e8f0;
+    }
+
+    /* Classe para ser adicionada via JavaScript quando o menu estiver ativo */
+    #controls.active {
+        transform: translateX(0); /* Move o menu para a posição visível */
+    }
+
+    /* O canvas ocupa a tela inteira */
+    #canvas-wrapper {
+        width: 100%;
+        height: 100vh;
+    }
+}
