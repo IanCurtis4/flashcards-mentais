@@ -1,6 +1,157 @@
 // Adicione no topo do seu main.js, junto com as outras constantes
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import {
+    getAuth,
+    onAuthStateChanged,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut,
+    connectAuthEmulator
+} from "firebase/auth";
+import {
+    getFirestore,
+    collection,
+    doc,
+    addDoc,
+    setDoc,
+    getDoc,
+    getDocs,
+    deleteDoc,
+    onSnapshot
+} from "firebase/firestore";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+    apiKey: "AIzaSyClIgyrDCxr2w9j8DuDd8IsdTkJQ3d4S9M",
+    authDomain: "flashcards-mentais.firebaseapp.com",
+    projectId: "flashcards-mentais",
+    storageBucket: "flashcards-mentais.firebasestorage.app",
+    messagingSenderId: "190585744647",
+    appId: "1:190585744647:web:f70b1fafe69e99f10229a2",
+    measurementId: "G-WZJ8RP1QS5"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+const db = getFirestore(app);
+const auth = getAuth(app);
+let currentUser = null; // Variável para armazenar o usuário logado
+let unsubscribeFromMaps = null; // Para parar de ouvir os mapas quando o usuário deslogar
+
+// -- REFERÊNCIAS AOS ELEMENTOS DO DOM DE AUTENTICAÇÃO --
+const authContainer = document.getElementById('auth-container');
+const appContainer = document.getElementById('app-container');
+const loginForm = document.getElementById('login-form');
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const signupBtn = document.getElementById('signup-btn');
+const googleSigninBtn = document.getElementById('google-signin-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const userInfoPanel = document.getElementById('user-info-panel');
+const userEmailDisplay = document.getElementById('user-email-display');
+
+// -- LÓGICA DE AUTENTICAÇÃO --
+signupBtn.addEventListener('click', async () => {
+    try {
+        await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+    } catch (error) { alert(`Erro ao criar conta: ${error.message}`); }
+});
+
+loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+    } catch (error) { alert(`Erro ao entrar: ${error.message}`); }
+});
+
+googleSigninBtn.addEventListener('click', async () => {
+    try {
+        await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (error) { alert(`Erro com o Google: ${error.message}`); }
+});
+
+logoutBtn.addEventListener('click', async () => {
+    await signOut(auth);
+
+    // Limpar cache local
+    try {
+        await Filesystem.deleteFile({
+            path: 'firestore_maps.json',
+            directory: Directory.Data
+        });
+    } catch (e) {
+        console.log('Nenhum cache para limpar');
+    }
+});
+
+// -- OBSERVADOR DE AUTENTICAÇÃO --
+onAuthStateChanged(auth, (user) => {
+    currentUser = user; // Atualiza o usuário global
+    if (user) {
+        // Usuário está logado
+        document.body.className = ''; // Limpa as classes do body
+        authContainer.classList.add('hidden');
+        appContainer.classList.remove('hidden');
+        userInfoPanel.classList.remove('hidden');
+        userEmailDisplay.textContent = user.email;
+
+        // Limpa a tela e começa a ouvir os mapas do Firestore
+        clearCanvasState();
+        updateMapList();
+
+        listenToFirestoreMaps();
+    } else {
+        // Usuário deslogado
+        document.body.className = 'auth-view'; // Adiciona a classe para centralizar
+        authContainer.classList.remove('hidden');
+        appContainer.classList.add('hidden');
+        userInfoPanel.classList.add('hidden');
+
+        // Para de ouvir os mapas do Firestore
+        if (unsubscribeFromMaps) {
+            unsubscribeFromMaps();
+        }
+        // Carrega mapas locais como fallback
+        clearCanvasState(); // Limpa a tela ao deslogar
+        updateMapList();
+    }
+});
+
+function listenToFirestoreMaps() {
+    if (!currentUser) return;
+
+    const mapsCollection = collection(db, 'users', currentUser.uid, 'maps');
+
+    unsubscribeFromMaps = onSnapshot(mapsCollection, (snapshot) => {
+        const maps = [];
+        snapshot.forEach(doc => {
+            maps.push({ id: doc.id, name: doc.data().name });
+        });
+
+        // Salvar mapas localmente
+        saveMapsLocally(maps);
+
+        updateMapList(maps);
+    });
+}
+
+function clearCanvasState() {
+    state = { cards: [], connections: [], nextCardId: 1, activeFilter: null, view: { x: 0, y: 0 } };
+    mapNameInput.value = '';
+    filterTagInput.value = '';
+    render();
+}
+
 // --- ELEMENTOS DA DOM ---
 const canvasWrapper = document.getElementById('canvas-wrapper');
 const canvas = document.getElementById('canvas');
@@ -51,12 +202,13 @@ let isCardFlipped = false; // <-- Variável para controlar o estado de flip
 let lastTap = { time: 0, target: null };
 let tapTimeout;
 let isTouchInteraction = false;
+let mapsLoading = false; // Variável para controlar o estado de carregamento dos mapas
 
 // --- Atualizar o sistema de eventos ---
 function setupEventListeners() {
     canvas.addEventListener('mousedown', onPointerStart);
     canvas.addEventListener('touchstart', onPointerStart, { passive: false });
-    
+
     //canvas.addEventListener('click', onPointerClick);
     canvas.addEventListener('touchend', onPointerEnd);
 }
@@ -65,39 +217,39 @@ function setupEventListeners() {
 function onPointerStart(e) {
     // Determinar se é uma interação por toque
     isTouchInteraction = e.type === 'touchstart';
-    
+
     // Chamar a lógica de drag/pan/resize existente
     onDragStart(e);
 }
 
-// --- Função para lidar com clicks/taps ---
-function onPointerClick(e) {
-    // Ignorar eventos de clique se for uma interação por toque
-    if (isTouchInteraction) return;
-    
-    handleCardInteraction(e);
-}
+// // --- Função para lidar com clicks/taps ---
+// function onPointerClick(e) {
+//     // Ignorar eventos de clique se for uma interação por toque
+//     if (isTouchInteraction) return;
+
+//     handleCardInteraction(e);
+// }
 
 // --- Função para lidar com final de toque ---
 function onPointerEnd(e) {
     if (isDraggingCard || isPanning || isResizing) return;
-    
+
     const cardElement = e.target.closest('.flashcard');
     if (!cardElement) return;
-    
+
     // Tentar detectar double-tap
     if (handleDoubleTap(e, cardElement)) {
         return;
     }
-    
+
     // Se não foi double-tap, verificar botões
     const touch = e.changedTouches[0];
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    
+
     // Verificar se tocou em botões de ação
     const deleteBtn = target.closest('.btn-delete');
     const editBtn = target.closest('.btn-edit');
-    
+
     if (deleteBtn) {
         const cardEl = deleteBtn.closest('.flashcard');
         const cardId = parseInt(cardEl.dataset.id);
@@ -112,58 +264,58 @@ function onPointerEnd(e) {
     }
 }
 
-// --- Função unificada para interações com cards ---
-function handleCardInteraction(e) {
-    // Ignorar em dispositivos touch
-    if ('ontouchstart' in window) return;
-    
-    // Comportamento original para desktop
-    const deleteBtn = e.target.closest('.btn-delete');
-    const editBtn = e.target.closest('.btn-edit');
-    const cardElement = e.target.closest('.flashcard');
-    
-    if (deleteBtn) {
-        const cardEl = deleteBtn.closest('.flashcard');
-        const cardId = parseInt(cardEl.dataset.id);
-        deleteCard(cardId);
-        return;
-    }
+// // --- Função unificada para interações com cards ---
+// function handleCardInteraction(e) {
+//     // Ignorar em dispositivos touch
+//     if ('ontouchstart' in window) return;
 
-    if (editBtn) {
-        const cardEl = editBtn.closest('.flashcard');
-        toggleEditMode(cardEl);
-        return;
-    }
-    
-    if (cardElement) {
-        const cardId = parseInt(cardElement.dataset.id);
-        const cardData = state.cards.find(c => c.id === cardId);
-        
-        if (cardData && !cardElement.dataset.editing) {
-            cardData.isFlipped = !cardData.isFlipped;
-            cardElement.classList.toggle('flipped');
-        }
-    }
-}
+//     // Comportamento original para desktop
+//     const deleteBtn = e.target.closest('.btn-delete');
+//     const editBtn = e.target.closest('.btn-edit');
+//     const cardElement = e.target.closest('.flashcard');
+
+//     if (deleteBtn) {
+//         const cardEl = deleteBtn.closest('.flashcard');
+//         const cardId = parseInt(cardEl.dataset.id);
+//         deleteCard(cardId);
+//         return;
+//     }
+
+//     if (editBtn) {
+//         const cardEl = editBtn.closest('.flashcard');
+//         toggleEditMode(cardEl);
+//         return;
+//     }
+
+//     if (cardElement) {
+//         const cardId = parseInt(cardElement.dataset.id);
+//         const cardData = state.cards.find(c => c.id === cardId);
+
+//         if (cardData && !cardElement.dataset.editing) {
+//             cardData.isFlipped = !cardData.isFlipped;
+//             cardElement.classList.toggle('flipped');
+//         }
+//     }
+// }
 
 // --- Atualizar a função handleDoubleTap ---
 function handleDoubleTap(e, cardElement) {
     const currentTime = Date.now();
     const tapTarget = e.target;
-    
+
     // Verificar se é o mesmo card e intervalo curto
     if (lastTap.target === tapTarget && (currentTime - lastTap.time) < 300) {
         clearTimeout(tapTimeout);
         lastTap = { time: 0, target: null };
-        
+
         // Flipar o card
         const cardId = parseInt(cardElement.dataset.id);
         const cardData = state.cards.find(c => c.id === cardId);
-        
+
         if (cardData && !cardElement.dataset.editing) {
             cardData.isFlipped = !cardData.isFlipped;
             cardElement.classList.toggle('flipped');
-            
+
             // Feedback visual
             cardElement.classList.add('flip-animation');
             setTimeout(() => {
@@ -172,13 +324,13 @@ function handleDoubleTap(e, cardElement) {
         }
         return true; // Double-tap detectado
     }
-    
+
     // Primeiro toque
     lastTap = { time: currentTime, target: tapTarget };
     tapTimeout = setTimeout(() => {
         lastTap = { time: 0, target: null }; // Resetar após timeout
     }, 300);
-    
+
     return false; // Não foi double-tap
 }
 
@@ -214,7 +366,7 @@ function onDragStart(e) {
 
         const cardId = parseInt(activeCard.dataset.id);
         const cardData = state.cards.find(c => c.id === cardId);
-        
+
         if (cardData) {
             initialCardX = cardData.x;
             initialCardY = cardData.y;
@@ -277,7 +429,7 @@ function onDragMove(e) {
 
             cardData.width = newWidth;
             cardData.height = newHeight;
-            
+
             // Atualizamos a posição apenas para cards flipados
             if (isCardFlipped) {
                 cardData.x = newX;
@@ -332,7 +484,7 @@ function onDragEnd(e) {
 
         const cardId = parseInt(activeCard.dataset.id);
         const cardData = state.cards.find(c => c.id === cardId);
-        
+
         if (cardData) {
             let cardRect = activeCard.getBoundingClientRect();
             initialCardWidth = cardRect.width;
@@ -588,30 +740,27 @@ clearFilterBtn.addEventListener('click', () => {
     render();
 });
 
-async function getSavedMaps() {
+async function saveMapsLocally(maps) {
     try {
-        const result = await Filesystem.readdir({
-            path: '', // Lê a raiz do diretório de dados
-            directory: Directory.Data // Diretório seguro para dados do app
+        // Converter array de mapas para objeto
+        const mapsData = {};
+        maps.forEach(map => {
+            mapsData[map.id] = map;
         });
-        // Retorna um objeto no mesmo formato que o original, para compatibilidade
-        const maps = {};
-        for (const fileName of result.files) {
-            // Nossos arquivos são salvos como "nome_do_mapa.json"
-            if (fileName.name.endsWith('.json')) {
-                const mapName = fileName.name.replace('.json', '');
-                // Aqui apenas listamos os nomes. O conteúdo será lido em loadMap.
-                maps[mapName] = {};
-            }
-        }
-        return maps;
+
+        // Salvar dados no armazenamento local
+        await Filesystem.writeFile({
+            path: 'firestore_maps.json',
+            data: JSON.stringify(mapsData),
+            directory: Directory.Data,
+            encoding: Encoding.UTF8,
+        });
     } catch (e) {
-        // O diretório pode não existir na primeira execução.
-        console.log("Nenhum mapa salvo encontrado.", e);
-        return {};
+        console.error('Erro ao salvar mapas localmente:', e);
     }
 }
 
+// Substitua a função saveCurrentMap
 async function saveCurrentMap() {
     const name = mapNameInput.value.trim();
     if (!name) {
@@ -620,79 +769,163 @@ async function saveCurrentMap() {
     }
     state.nextCardId = state.cards.length > 0 ? Math.max(...state.cards.map(c => c.id)) + 1 : 1;
 
-    try {
-        await Filesystem.writeFile({
-            path: `${name}.json`,
-            data: JSON.stringify(state),
-            directory: Directory.Data,
-            encoding: Encoding.UTF8,
-        });
-        alert(`Mapa "${name}" salvo com sucesso!`);
-        updateMapList();
-    } catch (e) {
-        console.error('Erro ao salvar o mapa:', e);
-        alert('Ocorreu um erro ao salvar o mapa.');
+    if (currentUser) {
+        // --- Salvar no Firestore ---
+        try {
+            const mapRef = doc(collection(db, 'users', currentUser.uid, 'maps'));
+            await setDoc(mapRef, {
+                name: name,
+                state: JSON.stringify(state) // Armazena o estado como uma string JSON
+            });
+            alert(`Mapa "${name}" salvo na nuvem!`);
+            // A lista será atualizada automaticamente pelo listener 'onSnapshot'
+        } catch (e) {
+            console.error('Erro ao salvar no Firestore:', e);
+            alert('Ocorreu um erro ao salvar na nuvem.');
+        }
+    } else {
+        // --- Salvar Localmente (lógica existente) ---
+        try {
+            await Filesystem.writeFile({
+                path: `${name}.json`,
+                data: JSON.stringify(state),
+                directory: Directory.Data,
+                encoding: Encoding.UTF8,
+            });
+            alert(`Mapa "${name}" salvo localmente!`);
+            updateMapList(); // Atualiza a lista local
+        } catch (e) {
+            console.error('Erro ao salvar o mapa local:', e);
+            alert('Ocorreu um erro ao salvar o mapa.');
+        }
     }
 }
 
+// Substitua a função loadMap
 async function loadMap() {
-    const name = loadMapSelect.value;
-    if (!name) return;
+    const mapId = loadMapSelect.value;
+    if (!mapId) return;
 
-    try {
-        const file = await Filesystem.readFile({
-            path: `${name}.json`,
-            directory: Directory.Data,
-            encoding: Encoding.UTF8,
-        });
-
-        state = JSON.parse(file.data);
-        // Garantir compatibilidade com mapas antigos
-        state.activeFilter = state.activeFilter === undefined ? null : state.activeFilter;
-        state.view = state.view === undefined ? { x: 0, y: 0 } : state.view;
-        state.cards.forEach(c => {
-            c.width = c.width || 200;
-            c.height = c.height || 120;
-        });
-
-        mapNameInput.value = name;
-        filterTagInput.value = state.activeFilter || '';
-        render();
-        alert(`Mapa "${name}" carregado.`);
-
-    } catch (e) {
-        console.error('Erro ao carregar o mapa:', e);
-        alert('Ocorreu um erro ao carregar o mapa.');
+    if (currentUser) {
+        // --- Carregar do Firestore ---
+        try {
+            const mapRef = doc(db, 'users', currentUser.uid, 'maps', mapId);
+            const docSnap = await getDoc(mapRef);
+            if (docSnap.exists()) {
+                const mapData = docSnap.data();
+                state = JSON.parse(mapData.state);
+                mapNameInput.value = mapData.name;
+                filterTagInput.value = state.activeFilter || '';
+                render();
+                alert(`Mapa "${mapData.name}" carregado da nuvem.`);
+            }
+        } catch (e) {
+            console.error("Erro ao carregar mapa do Firestore:", e);
+        }
+    } else {
+        // --- Carregar Localmente (lógica existente com pequena adaptação) ---
+        const mapName = loadMapSelect.options[loadMapSelect.selectedIndex].text;
+        try {
+            const file = await Filesystem.readFile({ path: `${mapName}.json`, directory: Directory.Data, encoding: Encoding.UTF8 });
+            state = JSON.parse(file.data);
+            mapNameInput.value = mapName;
+            filterTagInput.value = state.activeFilter || '';
+            render();
+            alert(`Mapa "${mapName}" carregado localmente.`);
+        } catch (e) {
+            console.error('Erro ao carregar o mapa local:', e);
+        }
     }
 }
 
+// Substitua a função deleteMap
 async function deleteMap() {
-    const name = loadMapSelect.value;
-    if (!name || !confirm(`Tem certeza que deseja deletar o mapa "${name}"?`)) return;
+    const mapId = loadMapSelect.value;
+    const mapName = loadMapSelect.options[loadMapSelect.selectedIndex].text;
+    if (!mapId || !confirm(`Tem certeza que deseja deletar o mapa "${mapName}"?`)) return;
 
-    try {
-        await Filesystem.deleteFile({
-            path: `${name}.json`,
-            directory: Directory.Data,
-        });
-        alert(`Mapa "${name}" deletado.`);
-        updateMapList();
-    } catch (e) {
-        console.error('Erro ao deletar o mapa:', e);
-        alert('Ocorreu um erro ao deletar o mapa.');
+    if (currentUser) {
+        // --- Deletar do Firestore ---
+        try {
+            await deleteDoc(doc(db, 'users', currentUser.uid, 'maps', mapId));
+            alert(`Mapa "${mapName}" deletado da nuvem.`);
+            clearCanvasState();
+        } catch (e) {
+            console.error("Erro ao deletar do Firestore:", e);
+        }
+    } else {
+        // --- Deletar Localmente (lógica existente) ---
+        try {
+            await Filesystem.deleteFile({ path: `${mapName}.json`, directory: Directory.Data });
+            alert(`Mapa "${mapName}" deletado localmente.`);
+            clearCanvasState();
+            updateMapList();
+        } catch (e) {
+            console.error('Erro ao deletar o mapa local:', e);
+        }
     }
 }
 
-async function updateMapList() {
-    const allMaps = await getSavedMaps(); // Agora é uma função assíncrona
-    const mapNames = Object.keys(allMaps);
+
+// Substitua a função updateMapList
+async function updateMapList(firestoreMaps = null) {
+    let mapsToDisplay = [];
+
+    if (firestoreMaps) {
+        mapsToDisplay = firestoreMaps;
+    } else {
+        // Tentar carregar do cache local
+        try {
+            const file = await Filesystem.readFile({
+                path: 'firestore_maps.json',
+                directory: Directory.Data,
+                encoding: Encoding.UTF8,
+            });
+
+            const localMaps = JSON.parse(file.data);
+            mapsToDisplay = Object.values(localMaps);
+        } catch (e) {
+            console.log('Nenhum cache local encontrado');
+        }
+    }
+
+    // Se ainda vazio, tentar mapas locais padrão
+    if (mapsToDisplay.length === 0 && !currentUser) {
+        const localMaps = await getSavedMaps();
+        mapsToDisplay = Object.keys(localMaps).map(name => ({
+            id: name,
+            name: name
+        }));
+    }
+
+    // Atualizar UI
     loadMapSelect.innerHTML = '';
-    if (mapNames.length === 0) {
+    if (mapsToDisplay.length === 0) {
         loadMapSelect.add(new Option('Nenhum mapa salvo', ''));
     } else {
-        mapNames.forEach(name => {
-            loadMapSelect.add(new Option(name, name));
+        mapsToDisplay.forEach(map => {
+            loadMapSelect.add(new Option(map.name, map.id));
         });
+    }
+}
+
+// Sua função getSavedMaps local permanece como está, pois é usada no modo offline.
+async function getSavedMaps() {
+    try {
+        const result = await Filesystem.readdir({
+            path: '',
+            directory: Directory.Data
+        });
+        const maps = {};
+        for (const file of result.files) {
+            if (file.name.endsWith('.json')) {
+                const mapName = file.name.replace('.json', '');
+                maps[mapName] = {};
+            }
+        }
+        return maps;
+    } catch (e) {
+        return {};
     }
 }
 
@@ -723,11 +956,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// E a inicialização também precisa ser adaptada
-window.onload = async () => { // <--- Torne a função async
-    render();
-    await updateMapList(); // <--- Chame a nova updateMapList
-};
+// // E a inicialização também precisa ser adaptada
+// window.onload = async () => { // <--- Torne a função async
+//     render();
+//     await updateMapList(); // <--- Chame a nova updateMapList
+// };
 
 window.onresize = () => {
     render();

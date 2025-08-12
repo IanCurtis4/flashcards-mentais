@@ -1,8 +1,17 @@
+/* Estilo base do body, sem o flexbox de centralização */
 body {
     font-family: 'Inter', sans-serif;
     background-color: #f0f2f5;
     color: #1a202c;
-    overflow: hidden;
+    margin: 0;
+}
+
+/* Classe que será adicionada via JS para centralizar o painel de login */
+body.auth-view {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
 }
 
 #app-container {
@@ -269,4 +278,19 @@ body {
         width: 100%;
         height: 100vh;
     }
+}
+
+/* Estilos para o container de autenticação */
+#auth-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Classe utilitária para esconder elementos */
+.hidden {
+    display: none !important;
 }
