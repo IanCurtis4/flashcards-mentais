@@ -41,6 +41,8 @@ let initialCardWidth: number, initialCardHeight: number, initialCardX: number, i
 // MODIFICADO: Reintroduzindo a lógica de 'lastTap' do main.old.js
 let lastTap = { time: 0, target: null as EventTarget | null };
 let initialDistance: number = 0;
+let touchStartTime: number = 0; // Adicionar esta variável no topo
+let hasMovedSignificantly = false; // Adicionar esta variável no topo
 
 // --- FUNÇÕES DE RENDERIZAÇÃO E ESTADO (Sem grandes alterações) ---
 // ... (As funções clearCanvasState, render, renderCards, renderConnections, updateSelects, deleteCard, toggleEditMode permanecem as mesmas da sua versão com zoom)
@@ -54,6 +56,8 @@ export function clearCanvasState(): void {
     filterTagInput.value = '';
     render();
 }
+
+// canvas.ts -> DENTRO DA FUNÇÃO render()
 
 export function render(): void {
     renderCards();
@@ -71,6 +75,8 @@ export function render(): void {
     // O tamanho da malha ainda depende do zoom.
     canvas.style.backgroundSize = `${20 * state.view.zoom}px ${20 * state.view.zoom}px`;
 }
+
+// canvas.ts -> DENTRO DA FUNÇÃO renderCards()
 
 function renderCards(): void {
     canvas.innerHTML = '';
@@ -226,14 +232,18 @@ export function onPointerStart(e: MouseEvent | TouchEvent): void {
     if (e instanceof MouseEvent && e.button !== 0) return;
     if ((e.target as HTMLElement).closest('.action-btn, .edit-textarea')) return;
 
-    // MODIFICADO: Resetando o estado de drag ao iniciar
+    // NOVO: Marcar tempo de início do touch
+    touchStartTime = Date.now();
+    hasMovedSignificantly = false;
+    
+    // Resetando o estado de drag ao iniciar
     isDraggingCard = false;
     
     // Lógica de zoom com pinch (dois toques)
     if (e instanceof TouchEvent && e.touches.length === 2) {
         e.preventDefault();
         isZooming = true;
-        isPanning = false; // Garante que não haja pan durante o zoom
+        isPanning = false;
         initialDistance = getDistance(e.touches);
         return;
     }
@@ -244,30 +254,28 @@ export function onPointerStart(e: MouseEvent | TouchEvent): void {
     const resizeHandle = targetElement.closest('.resize-handle');
 
     if (resizeHandle && activeCardElement) {
+        e.preventDefault(); // NOVO: Prevenir comportamento padrão
         e.stopPropagation();
         isResizing = true;
-        const cardId = parseInt(activeCardElement.dataset.id!); // Pega o ID
-        const cardData = state.cards.find(c => c.id === cardId)!; // Pega os dados do card
-
-        initialCardWidth = cardData.width;
-        initialCardHeight = cardData.height;
-        initialCardX = cardData.x; // Guarda a posição X inicial
-        initialCardY = cardData.y; // Guarda a posição Y inicial
-        panStartX = coords.x;
-        panStartY = coords.y;
-    } else if (activeCardElement) {
         const cardId = parseInt(activeCardElement.dataset.id!);
         const cardData = state.cards.find(c => c.id === cardId)!;
 
-        // Guarda a posição inicial do card e do ponteiro para o drag
+        initialCardWidth = cardData.width;
+        initialCardHeight = cardData.height;
         initialCardX = cardData.x;
         initialCardY = cardData.y;
         panStartX = coords.x;
         panStartY = coords.y;
+    } else if (activeCardElement) {
+        e.preventDefault(); // NOVO: Prevenir comportamento padrão para touch
+        
+        const cardId = parseInt(activeCardElement.dataset.id!);
+        const cardData = state.cards.find(c => c.id === cardId)!;
 
-        // Lógica de offset não é mais necessária com este método
-        // dragOffsetX = (coords.x - cardRect.left) / state.view.zoom;
-        // dragOffsetY = (coords.y - cardRect.top) / state.view.zoom;
+        initialCardX = cardData.x;
+        initialCardY = cardData.y;
+        panStartX = coords.x;
+        panStartY = coords.y;
 
         activeCardElement.style.cursor = 'grabbing';
         activeCardElement.style.zIndex = '10';
@@ -277,14 +285,19 @@ export function onPointerStart(e: MouseEvent | TouchEvent): void {
         panStartY = coords.y;
     }
 
+    // MODIFICADO: Adicionar passive: false para todos os eventos touch
     document.addEventListener('mousemove', onPointerMove);
     document.addEventListener('touchmove', onPointerMove, { passive: false });
     document.addEventListener('mouseup', onPointerEnd);
-    document.addEventListener('touchend', onPointerEnd);
+    document.addEventListener('touchend', onPointerEnd, { passive: false });
 }
 
 function onPointerMove(e: MouseEvent | TouchEvent): void {
-    if (e instanceof TouchEvent) e.preventDefault();
+    // CORRIGIDO: Só prevenir se estiver realmente fazendo algo
+    if (e instanceof TouchEvent && (isDraggingCard || isPanning || isResizing || isZooming)) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
 
     if (isZooming && e instanceof TouchEvent && e.touches.length === 2) {
         const currentDistance = getDistance(e.touches);
@@ -292,7 +305,7 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
             const scaleFactor = currentDistance / initialDistance;
             const newZoom = Math.max(0.5, Math.min(3, state.view.zoom * scaleFactor));
             state.view.zoom = newZoom;
-            initialDistance = currentDistance; // Atualiza a distância inicial para o próximo movimento
+            initialDistance = currentDistance;
             render();
         }
         return;
@@ -301,51 +314,58 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
     const coords = getEventCoords(e);
 
     if (isResizing && activeCardElement) {
-        const dx = (coords.x - panStartX) / state.view.zoom;
-        const dy = (coords.y - panStartY) / state.view.zoom;
+        hasMovedSignificantly = true; // NOVO: Marcar movimento
+        
+        const dx = (coords.x - panStartX);
+        const dy = (coords.y - panStartY);
         const cardId = parseInt(activeCardElement.dataset.id!);
         const cardData = state.cards.find(c => c.id === cardId);
 
         if (cardData) {
-            // Lógica de altura é sempre a mesma
-            cardData.height = Math.max(80, initialCardHeight + dy);
-
-            // Lógica de largura depende do estado 'flipped'
+            cardData.height = Math.max(80, initialCardHeight + (dy / state.view.zoom));
             if (cardData.isFlipped) {
-                // Se está flipado, o handle está à esquerda.
-                // Diminuímos a largura e movemos a posição X para a direita.
-                const newWidth = initialCardWidth - dx;
+                const newWidth = initialCardWidth - (dx / state.view.zoom);
                 if (newWidth >= 100) {
                     cardData.width = newWidth;
-                    cardData.x = initialCardX + dx;
+                    cardData.x = initialCardX + (dx / state.view.zoom);
                 }
             } else {
-                // Comportamento normal, handle à direita.
-                cardData.width = Math.max(100, initialCardWidth + dx);
+                cardData.width = Math.max(100, initialCardWidth + (dx / state.view.zoom));
             }
             render();
         }
     } else if (activeCardElement) {
         const dx = coords.x - panStartX;
         const dy = coords.y - panStartY;
-        if (!isDraggingCard && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-            isDraggingCard = true; 
+        
+        // MODIFICADO: Threshold mais conservador e detecção mais robusta
+        const threshold = e instanceof TouchEvent ? 8 : 5; // Threshold mais conservador para touch
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (!isDraggingCard && distance > threshold) {
+            isDraggingCard = true;
+            hasMovedSignificantly = true;
+            console.log('Iniciando drag, distância:', distance); // Debug temporário
+            
+            // Feedback visual mais sutil
+            if (activeCardElement) {
+                activeCardElement.style.opacity = '0.9';
+                activeCardElement.style.transition = 'none';
+            }
         }
 
         if (isDraggingCard) {
-            // FÓRMULA DE ARRASTE CORRIGIDA
             const cardId = parseInt(activeCardElement.dataset.id!);
             const cardData = state.cards.find(c => c.id === cardId);
             if (cardData) {
-                // A nova posição é a posição inicial do card (que precisamos guardar)
-                // mais a variação do mouse convertida para o "espaço do mundo" (dividindo pelo zoom)
-                // Usaremos as mesmas 'initialCardX/Y' do resize, mas vamos capturá-las no início do drag.
                 cardData.x = initialCardX + dx / state.view.zoom;
                 cardData.y = initialCardY + dy / state.view.zoom;
                 render();
             }
         }
     } else if (isPanning) {
+        hasMovedSignificantly = true; // NOVO: Marcar movimento
+        
         const dx = coords.x - panStartX;
         const dy = coords.y - panStartY;
         state.view.x -= dx / state.view.zoom;
@@ -359,31 +379,44 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
 function onPointerEnd(e: MouseEvent | TouchEvent): void {
     const targetElement = e.target as HTMLElement;
     const cardElement = targetElement.closest('.flashcard') as HTMLDivElement;
+    const wasTouch = e.type === 'touchend';
+    const touchDuration = Date.now() - touchStartTime;
 
-    // ADICIONADO: Lógica de flip do main.old.js, adaptada para TS e para o novo estado
-    if (cardElement && !isDraggingCard && !isResizing && !isZooming) {
-        const wasTouch = e.type === 'touchend';
+    // Remover efeitos visuais
+    if (activeCardElement) {
+        activeCardElement.style.opacity = '';
+        activeCardElement.style.transform = '';
+        activeCardElement.style.transition = '';
+        activeCardElement.style.cursor = 'grab';
+        activeCardElement.style.zIndex = '5';
+    }
+
+    // CORRIGIDO: Lógica de flip simplificada - APENAS double tap no mobile
+    if (cardElement && !hasMovedSignificantly && !isResizing && !isZooming && !isDraggingCard) {
         const currentTime = Date.now();
 
-        // Lógica de Double Tap para Mobile
         if (wasTouch) {
-            if (lastTap.target === cardElement && (currentTime - lastTap.time) < 300) {
-                // É um double tap
-                flipCard(cardElement);
-                lastTap = { time: 0, target: null }; // Reseta o tap
-            } else {
-                // É o primeiro tap
-                lastTap = { time: currentTime, target: cardElement };
+            // Mobile: APENAS double tap faz flip
+            if (touchDuration < 250) { // Tap rápido
+                if (lastTap.target === cardElement && (currentTime - lastTap.time) < 300) {
+                    // Double tap detectado - fazer flip
+                    flipCard(cardElement);
+                    lastTap = { time: 0, target: null }; // Limpar
+                } else {
+                    // Primeiro tap - apenas salvar, NÃO fazer flip
+                    lastTap = { time: currentTime, target: cardElement };
+                    // SEM setTimeout - não fazer flip automático
+                }
             }
         } else {
-            // Lógica de Single Click para Desktop
+            // Desktop: single click faz flip (como estava funcionando)
             flipCard(cardElement);
         }
     }
 
-    if (activeCardElement) {
-        activeCardElement.style.cursor = 'grab';
-        activeCardElement.style.zIndex = '5';
+    // Limpar lastTap se houve movimento ou operação diferente
+    if (hasMovedSignificantly || isResizing || isZooming || isDraggingCard) {
+        lastTap = { time: 0, target: null };
     }
 
     // Reseta todos os estados
@@ -393,7 +426,9 @@ function onPointerEnd(e: MouseEvent | TouchEvent): void {
     isZooming = false;
     activeCardElement = null;
     initialDistance = 0;
+    hasMovedSignificantly = false;
 
+    // IMPORTANTE: Limpar TODOS os event listeners
     document.removeEventListener('mousemove', onPointerMove);
     document.removeEventListener('touchmove', onPointerMove);
     document.removeEventListener('mouseup', onPointerEnd);
