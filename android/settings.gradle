@@ -1,0 +1,9 @@
+include ':app'
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+// ... outras configurações
+
+include ':@capacitor-firebase:authentication'
+project(':@capacitor-firebase:authentication').projectDir = new File(rootProject.projectDir, '../node_modules/@capacitor-firebase/authentication/android')
+
+apply from: 'capacitor.settings.gradle'

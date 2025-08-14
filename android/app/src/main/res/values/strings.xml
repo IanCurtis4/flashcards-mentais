@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Flashcards-Mentais</string>
+    <string name="title_activity_main">Flashcards-Mentais</string>
+    <string name="package_name">com.seuapp.id</string>
+    <string name="custom_url_scheme">com.seuapp.id</string>
+    <string name="server_client_id">190585744647-6fbgbkfn4fk299348bl5utpvisf9e7q1.apps.googleusercontent.com</string>
+</resources>

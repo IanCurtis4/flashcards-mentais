@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "190585744647",
+    "project_id": "flashcards-mentais",
+    "storage_bucket": "flashcards-mentais.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:190585744647:android:b2a17f51598554480229a2",
+        "android_client_info": {
+          "package_name": "com.seuapp.id"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "190585744647-rj6o2v1unedkdgol46gkiqumdmsonfcv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.seuapp.id",
+            "certificate_hash": "f6d9dfed36dd1bd8bfa627c867569618e2fba5e9"
+          }
+        },
+        {
+          "client_id": "190585744647-6fbgbkfn4fk299348bl5utpvisf9e7q1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAJMG96iIfu_iN5hq14_fGi_7dwEywKIcw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "190585744647-6fbgbkfn4fk299348bl5utpvisf9e7q1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

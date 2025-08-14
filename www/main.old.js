@@ -1,6 +1,6 @@
 // Adicione no topo do seu main.js, junto com as outras constantes
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-
+import { Capacitor } from '@capacitor/core';
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
@@ -11,8 +11,11 @@ import {
     signInWithEmailAndPassword,
     GoogleAuthProvider,
     signInWithPopup,
+    signInWithCredential,
+    getRedirectResult,
+    signInWithRedirect,
     signOut,
-    connectAuthEmulator
+    connectAuthEmulator,
 } from "firebase/auth";
 import {
     getFirestore,
@@ -25,6 +28,7 @@ import {
     deleteDoc,
     onSnapshot
 } from "firebase/firestore";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -45,10 +49,25 @@ const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 const auth = getAuth(app);
+// getRedirectResult(auth)
+//   .then((result) => {
+//     if (result) {
+//       // Isso significa que o usuário acabou de ser redirecionado de volta do Google.
+//       // O objeto 'user' estará disponível no onAuthStateChanged normalmente.
+//       const credential = GoogleAuthProvider.credentialFromResult(result);
+//       console.log("Login via redirect bem-sucedido!", result.user);
+//     }
+//   }).catch((error) => {
+//     // Lidar com erros aqui.
+//     console.error("Erro no getRedirectResult:", error);
+//     alert(`Erro no login via redirect: ${error.message}`);
+//   });
+
 let currentUser = null; // Variável para armazenar o usuário logado
 let unsubscribeFromMaps = null; // Para parar de ouvir os mapas quando o usuário deslogar
 
 // -- REFERÊNCIAS AOS ELEMENTOS DO DOM DE AUTENTICAÇÃO --
+const loadingContainer = document.getElementById('loading-container');
 const authContainer = document.getElementById('auth-container');
 const appContainer = document.getElementById('app-container');
 const loginForm = document.getElementById('login-form');
@@ -76,8 +95,35 @@ loginForm.addEventListener('submit', async (e) => {
 
 googleSigninBtn.addEventListener('click', async () => {
     try {
-        await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (error) { alert(`Erro com o Google: ${error.message}`); }
+        const platform = Capacitor.getPlatform(); // Detecta a plataforma atual
+
+        if (platform === 'electron' || platform === 'web') {
+            // --- FLUXO PARA DESKTOP (ELECTRON) E WEB ---
+            // Use o método de login com Pop-up padrão do Firebase Web SDK
+            console.log("Iniciando login com Google (Web/Desktop)...");
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider);
+            console.log("Login com Google (Web/Desktop) bem-sucedido!");
+
+        } else {
+            // --- FLUXO PARA MÓVEL (ANDROID/IOS) ---
+            // Mantenha o código que você já tem para o Capacitor
+            console.log("Iniciando login com Google (Nativo)...");
+            const result = await FirebaseAuthentication.signInWithGoogle();
+            const credential = GoogleAuthProvider.credential(result.credential?.idToken);
+            await signInWithCredential(auth, credential);
+            console.log("Login com Google (Nativo) bem-sucedido!");
+        }
+
+    } catch (error) {
+        // Lógica de erro unificada ou específica
+        if (error.message.includes('cancelled')) {
+            console.log("Login com Google cancelado pelo usuário.");
+        } else {
+            console.error(`Erro no login com Google na plataforma ${getPlatform()}:`, error);
+            alert(`Erro no login: ${error.message}`);
+        }
+    }
 });
 
 logoutBtn.addEventListener('click', async () => {
@@ -96,34 +142,33 @@ logoutBtn.addEventListener('click', async () => {
 
 // -- OBSERVADOR DE AUTENTICAÇÃO --
 onAuthStateChanged(auth, (user) => {
-    currentUser = user; // Atualiza o usuário global
+    currentUser = user; 
+    
+    // Primeiro, SEMPRE esconda o loading
+    loadingContainer.classList.add('hidden');
+
     if (user) {
         // Usuário está logado
-        document.body.className = ''; // Limpa as classes do body
         authContainer.classList.add('hidden');
         appContainer.classList.remove('hidden');
         userInfoPanel.classList.remove('hidden');
         userEmailDisplay.textContent = user.email;
 
-        // Limpa a tela e começa a ouvir os mapas do Firestore
         clearCanvasState();
-        updateMapList();
+        listenToFirestoreMaps(); // O updateMapList será chamado dentro do listener
 
-        listenToFirestoreMaps();
     } else {
         // Usuário deslogado
-        document.body.className = 'auth-view'; // Adiciona a classe para centralizar
         authContainer.classList.remove('hidden');
         appContainer.classList.add('hidden');
         userInfoPanel.classList.add('hidden');
-
-        // Para de ouvir os mapas do Firestore
+        
         if (unsubscribeFromMaps) {
             unsubscribeFromMaps();
         }
-        // Carrega mapas locais como fallback
-        clearCanvasState(); // Limpa a tela ao deslogar
-        updateMapList();
+        
+        clearCanvasState();
+        updateMapList(); // Carrega mapas locais/do cache
     }
 });
 
