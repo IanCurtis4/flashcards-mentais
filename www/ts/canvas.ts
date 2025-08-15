@@ -271,7 +271,10 @@ export function onPointerStart(e: MouseEvent | TouchEvent): void {
         
         const cardId = parseInt(activeCardElement.dataset.id!);
         const cardData = state.cards.find(c => c.id === cardId)!;
+        const cardRect = activeCardElement.getBoundingClientRect();
 
+        dragOffsetX = coords.x - cardRect.left;
+        dragOffsetY = coords.y - cardRect.top;
         initialCardX = cardData.x;
         initialCardY = cardData.y;
         panStartX = coords.x;
@@ -320,19 +323,23 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
         const dy = (coords.y - panStartY);
         const cardId = parseInt(activeCardElement.dataset.id!);
         const cardData = state.cards.find(c => c.id === cardId);
+        const newWidth = Math.max(100, initialCardWidth + (dx / state.view.zoom));
+        const newHeight = Math.max(80, initialCardHeight + (dy / state.view.zoom));
 
         if (cardData) {
             cardData.height = Math.max(80, initialCardHeight + (dy / state.view.zoom));
             if (cardData.isFlipped) {
-                const newWidth = initialCardWidth - (dx / state.view.zoom);
+                
                 if (newWidth >= 100) {
                     cardData.width = newWidth;
                     cardData.x = initialCardX + (dx / state.view.zoom);
                 }
             } else {
-                cardData.width = Math.max(100, initialCardWidth + (dx / state.view.zoom));
+                cardData.width = newWidth;
             }
-            render();
+            activeCardElement.style.width = `${newWidth}px`;
+            activeCardElement.style.height = `${newHeight}px`;
+            renderConnections();
         }
     } else if (activeCardElement) {
         const dx = coords.x - panStartX;
@@ -355,12 +362,30 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
         }
 
         if (isDraggingCard) {
+            // CORRIGIDO: Calcular nova posição usando offset em coordenadas do mundo
+            const wrapperRect = canvasWrapper.getBoundingClientRect();
+            const relativeX = coords.x - wrapperRect.left;
+            const relativeY = coords.y - wrapperRect.top;
+            
+            // Converter coordenadas da tela para coordenadas do mundo
+            const worldX = (relativeX / state.view.zoom) + state.view.x;
+            const worldY = (relativeY / state.view.zoom) + state.view.y;
+            
+            // Nova posição = posição do mouse no mundo - offset
+            const newX = worldX - dragOffsetX;
+            const newY = worldY - dragOffsetY;
+
             const cardId = parseInt(activeCardElement.dataset.id!);
             const cardData = state.cards.find(c => c.id === cardId);
             if (cardData) {
-                cardData.x = initialCardX + dx / state.view.zoom;
-                cardData.y = initialCardY + dy / state.view.zoom;
-                render();
+                // Atualizar dados do card
+                cardData.x = newX;
+                cardData.y = newY;
+                
+                // Atualizar posição visual considerando zoom
+                activeCardElement.style.left = `${(cardData.x - state.view.x) * state.view.zoom}px`;
+                activeCardElement.style.top = `${(cardData.y - state.view.y) * state.view.zoom}px`;
+                renderConnections(); // Atualizar conexões
             }
         }
     } else if (isPanning) {
@@ -374,6 +399,7 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
         panStartY = coords.y;
         render();
     }
+
 }
 
 function onPointerEnd(e: MouseEvent | TouchEvent): void {
