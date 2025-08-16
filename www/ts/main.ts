@@ -61,13 +61,6 @@ function setupMobileViewport(): void {
 }
 
 /**
- * Inicializa a tela principal da aplicação
- */
-function initializeScreen() {
-    state
-}
-
-/**
  * Inicializa o sistema de auto-save
  */
 function initializeAutoSave(): void {
@@ -77,18 +70,20 @@ function initializeAutoSave(): void {
     console.log('Sistema de auto-save inicializado');
 }
 
-function initializeNetworkObserver(): void {
+async function initializeNetworkObserver(): Promise<void> {
     // Observa mudanças de conexão de rede
     const syncMapButton = document.getElementById('save-map') as HTMLButtonElement;
+    const currentStatus = await Network.getStatus();
+    syncMapButton.innerHTML = currentStatus.connected ? 'Salvar Mapa na Nuvem' : 'Salvar Mapa Localmente';
     Network.addListener('networkStatusChange', (status) => {
         if (status.connected) {
             state.currentUser = auth.currentUser;
-            syncMapButton.disabled = false;
+            syncMapButton.innerHTML = 'Salvar Mapa na Nuvem';
             console.log('Conectado à rede');
             // Aqui você pode chamar syncWithCloud() se quiser sincronizar automaticamente
         } else {
             state.currentUser = null; // Limpa o usuário atual se desconectado
-            syncMapButton.disabled = true;
+            syncMapButton.innerHTML = 'Salvar Mapa Localmente';
             console.log('Desconectado da rede');
             // Talvez mostrar um alerta ou notificação
         }
@@ -98,7 +93,7 @@ function initializeNetworkObserver(): void {
 /**
  * Função principal que inicializa a aplicação.
  */
-function main() {
+async function main() {
     // Configura comportamentos mobile
     preventDefaultMobileBehaviors();
     setupMobileViewport();
@@ -107,7 +102,7 @@ function main() {
     initializeAuthObserver();
 
     // Configura o observador de rede
-    initializeNetworkObserver();
+    await initializeNetworkObserver();
 
     // Inicializa o sistema de auto-save
     initializeAutoSave();
