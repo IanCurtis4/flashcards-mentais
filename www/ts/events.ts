@@ -1,9 +1,11 @@
 // events.ts
 
+import { Dialog } from '@capacitor/dialog';
 import { handleSignUp, handleSignIn, handleGoogleSignIn, handleLogout } from './auth';
 import { render, state, deleteCard, toggleEditMode, onPointerStart, clearCanvasState, canvas, fromCardSelect, toCardSelect, initializeZoomControls } from './canvas';
-import { saveCurrentMap, loadMap, deleteMap } from './maps';
+import { saveCurrentMap, loadMap, deleteMap, triggerAutoSave, syncWithCloud } from './maps';
 import { Card } from './types';
+import { Toast } from '@capacitor/toast';
 
 // --- DOM ELEMENTS (Sem alterações) ---
 const loginForm = document.getElementById('login-form')!;
@@ -31,7 +33,7 @@ function handleAddCard(e: Event) {
     
     const tags = tagsInput.value.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean);
     if (tags.length === 0) {
-        alert('Por favor, adicione pelo menos uma tag.');
+        Toast.show({text:'Por favor, adicione pelo menos uma tag.'});
         return;
     }
 
@@ -50,6 +52,7 @@ function handleAddCard(e: Event) {
     state.cards.push(newCard);
     (addCardForm as HTMLFormElement).reset();
     render();
+    triggerAutoSave();
 }
 
 function handleConnectCards(e: Event) {
@@ -62,8 +65,9 @@ function handleConnectCards(e: Event) {
         if (!exists) {
             state.connections.push({ from: fromId, to: toId });
             render();
+            triggerAutoSave();
         } else {
-            alert('Essa conexão já existe.');
+            Toast.show({text:'Essa conexão já existe.'});
         }
     }
 }
@@ -72,12 +76,14 @@ function handleFilterByTag() {
     const filterValue = filterTagInput.value.trim().toLowerCase();
     state.activeFilter = filterValue || null;
     render();
+    triggerAutoSave();
 }
 
 function handleClearFilter() {
     state.activeFilter = null;
     filterTagInput.value = '';
     render();
+    triggerAutoSave();
 }
 
 function handleMenuToggle() {
@@ -131,7 +137,7 @@ export function initializeEventListeners(): void {
     });
 
     // Map Management
-    saveMapBtn.addEventListener('click', saveCurrentMap);
+    saveMapBtn.addEventListener('click', syncWithCloud);
     loadMapBtn.addEventListener('click', loadMap);
     deleteMapBtn.addEventListener('click', deleteMap);
     clearCanvasBtn.addEventListener('click', clearCanvasState);

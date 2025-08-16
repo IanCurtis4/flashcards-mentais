@@ -2,8 +2,10 @@
 
 import { initializeAuthObserver } from './auth';
 import { initializeEventListeners } from './events';
-import { render, clearCanvasState } from './canvas';
-import { updateMapList } from './maps';
+import { render, clearCanvasState, state } from './canvas';
+import { triggerAutoSave, updateMapList } from './maps';
+import { Network } from '@capacitor/network';
+import { auth } from './firebase';
 
 /**
  * Previne comportamentos padrão de zoom e scroll em dispositivos móveis
@@ -59,6 +61,41 @@ function setupMobileViewport(): void {
 }
 
 /**
+ * Inicializa a tela principal da aplicação
+ */
+function initializeScreen() {
+    state
+}
+
+/**
+ * Inicializa o sistema de auto-save
+ */
+function initializeAutoSave(): void {
+    // Força um auto-save inicial para garantir que o estado atual seja salvo
+    triggerAutoSave();
+    
+    console.log('Sistema de auto-save inicializado');
+}
+
+function initializeNetworkObserver(): void {
+    // Observa mudanças de conexão de rede
+    const syncMapButton = document.getElementById('save-map') as HTMLButtonElement;
+    Network.addListener('networkStatusChange', (status) => {
+        if (status.connected) {
+            state.currentUser = auth.currentUser;
+            syncMapButton.disabled = false;
+            console.log('Conectado à rede');
+            // Aqui você pode chamar syncWithCloud() se quiser sincronizar automaticamente
+        } else {
+            state.currentUser = null; // Limpa o usuário atual se desconectado
+            syncMapButton.disabled = true;
+            console.log('Desconectado da rede');
+            // Talvez mostrar um alerta ou notificação
+        }
+    });
+}
+
+/**
  * Função principal que inicializa a aplicação.
  */
 function main() {
@@ -68,6 +105,12 @@ function main() {
     
     // Configura o observador de autenticação que controla o fluxo da UI
     initializeAuthObserver();
+
+    // Configura o observador de rede
+    initializeNetworkObserver();
+
+    // Inicializa o sistema de auto-save
+    initializeAutoSave();
     
     // Anexa todos os manipuladores de eventos aos elementos do DOM
     initializeEventListeners();

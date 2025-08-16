@@ -20,7 +20,10 @@
     "@capacitor/android": "^7.4.2",
     "@capacitor/cli": "^7.4.2",
     "@capacitor/core": "^7.4.2",
+    "@capacitor/dialog": "^7.0.2",
     "@capacitor/filesystem": "^7.1.4",
+    "@capacitor/network": "^7.0.2",
+    "@capacitor/toast": "^7.0.2",
     "@tailwindcss/vite": "^4.1.11",
     "firebase": "^11.2.0"
   }

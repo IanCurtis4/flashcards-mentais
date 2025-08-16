@@ -1,5 +1,6 @@
 // canvas.ts
 
+import { triggerAutoSave } from './maps';
 import { AppState, Card, PointerCoords } from './types';
 
 // --- ÍCONES SVG (Sem alterações) ---
@@ -267,14 +268,16 @@ export function onPointerStart(e: MouseEvent | TouchEvent): void {
         panStartX = coords.x;
         panStartY = coords.y;
     } else if (activeCardElement) {
-        e.preventDefault(); // NOVO: Prevenir comportamento padrão para touch
+        e.preventDefault();
         
         const cardId = parseInt(activeCardElement.dataset.id!);
         const cardData = state.cards.find(c => c.id === cardId)!;
         const cardRect = activeCardElement.getBoundingClientRect();
 
-        dragOffsetX = coords.x - cardRect.left;
-        dragOffsetY = coords.y - cardRect.top;
+        // CORREÇÃO: Converter offset para coordenadas do mundo
+        dragOffsetX = (coords.x - cardRect.left) / state.view.zoom;
+        dragOffsetY = (coords.y - cardRect.top) / state.view.zoom;
+        
         initialCardX = cardData.x;
         initialCardY = cardData.y;
         panStartX = coords.x;
@@ -317,33 +320,35 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
     const coords = getEventCoords(e);
 
     if (isResizing && activeCardElement) {
-        hasMovedSignificantly = true; // NOVO: Marcar movimento
+        hasMovedSignificantly = true;
         
-        const dx = (coords.x - panStartX);
-        const dy = (coords.y - panStartY);
+        // CORREÇÃO AQUI: Dividir pelo zoom para converter para coordenadas do mundo
+        const dx = (coords.x - panStartX) / state.view.zoom;
+        const dy = (coords.y - panStartY) / state.view.zoom;
+        
         const cardId = parseInt(activeCardElement.dataset.id!);
         const cardData = state.cards.find(c => c.id === cardId);
-        const newWidth = Math.max(100, initialCardWidth + (dx / state.view.zoom));
-        const newHeight = Math.max(80, initialCardHeight + (dy / state.view.zoom));
+        const newWidth = Math.max(100, initialCardWidth + dx);
+        const newHeight = Math.max(80, initialCardHeight + dy);
 
         if (cardData) {
-            cardData.height = Math.max(80, initialCardHeight + (dy / state.view.zoom));
+            cardData.height = newHeight;
             if (cardData.isFlipped) {
-                
                 if (newWidth >= 100) {
                     cardData.width = newWidth;
-                    cardData.x = initialCardX + (dx / state.view.zoom);
+                    cardData.x = initialCardX + dx; // Também ajustado aqui
                 }
             } else {
                 cardData.width = newWidth;
             }
-            activeCardElement.style.width = `${newWidth}px`;
-            activeCardElement.style.height = `${newHeight}px`;
+            // Atualiza visualização considerando o zoom
+            activeCardElement.style.width = `${newWidth * state.view.zoom}px`;
+            activeCardElement.style.height = `${newHeight * state.view.zoom}px`;
             renderConnections();
         }
     } else if (activeCardElement) {
-        const dx = coords.x - panStartX;
-        const dy = coords.y - panStartY;
+        const dx = (coords.x - panStartX) / state.view.zoom;
+        const dy = (coords.y - panStartY) / state.view.zoom;
         
         // MODIFICADO: Threshold mais conservador e detecção mais robusta
         const threshold = e instanceof TouchEvent ? 8 : 5; // Threshold mais conservador para touch
@@ -362,19 +367,14 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
         }
 
         if (isDraggingCard) {
-            // CORRIGIDO: Calcular nova posição usando offset em coordenadas do mundo
             const wrapperRect = canvasWrapper.getBoundingClientRect();
             const relativeX = coords.x - wrapperRect.left;
             const relativeY = coords.y - wrapperRect.top;
-            
-            // Converter coordenadas da tela para coordenadas do mundo
             const worldX = (relativeX / state.view.zoom) + state.view.x;
             const worldY = (relativeY / state.view.zoom) + state.view.y;
-            
-            // Nova posição = posição do mouse no mundo - offset
-            const newX = worldX - dragOffsetX;
+            const newX = worldX - dragOffsetX; // agora dragOffsetX está no mesmo sistema (mundo)
             const newY = worldY - dragOffsetY;
-
+                        
             const cardId = parseInt(activeCardElement.dataset.id!);
             const cardData = state.cards.find(c => c.id === cardId);
             if (cardData) {
@@ -438,11 +438,14 @@ function onPointerEnd(e: MouseEvent | TouchEvent): void {
             // Desktop: single click faz flip (como estava funcionando)
             flipCard(cardElement);
         }
+
+        triggerAutoSave(); // Salvar estado após flip
     }
 
     // Limpar lastTap se houve movimento ou operação diferente
     if (hasMovedSignificantly || isResizing || isZooming || isDraggingCard) {
         lastTap = { time: 0, target: null };
+        triggerAutoSave(); // Salvar estado após drag, resize ou zoom
     }
 
     // Reseta todos os estados

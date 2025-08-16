@@ -1,15 +1,50 @@
 // maps.ts
 
-import { collection, doc, setDoc, getDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, query, where, getDocs, DocumentData, DocumentReference } from "firebase/firestore";
 import { db } from './firebase';
 import { state, render, clearCanvasState } from './canvas';
 import { AppState, FirebaseMapData } from './types';
+import { Dialog } from "@capacitor/dialog";
+import { Toast } from "@capacitor/toast";
 
 // --- REFERÊNCIAS AOS ELEMENTOS DO DOM ---
 const mapNameInput = document.getElementById('map-name') as HTMLInputElement;
 const loadMapSelect = document.getElementById('load-map-select') as HTMLSelectElement;
 const filterTagInput = document.getElementById('filter-tag-input') as HTMLInputElement;
 
+// Variável para controlar o auto-save
+let autoSaveTimeout: NodeJS.Timeout | null = null;
+const AUTO_SAVE_DELAY = 1000; // 1 segundo de delay para evitar saves excessivos
+
+/**
+ * Auto-save local: salva automaticamente no localStorage após mudanças
+ */
+export function triggerAutoSave(): void {
+    // Clear do timeout anterior para evitar saves múltiplos
+    if (autoSaveTimeout) {
+        clearTimeout(autoSaveTimeout);
+    }
+    
+    // Agenda o auto-save com delay
+    autoSaveTimeout = setTimeout(() => {
+        const currentMapName = mapNameInput.value.trim() || "$";
+        
+        // Garante que o nextCardId está atualizado
+        state.nextCardId = state.cards.length > 0 ? Math.max(...state.cards.map(c => c.id)) + 1 : 1;
+        
+        const mapStateToSave: Omit<AppState, 'currentUser' | 'unsubscribeFromMaps'> = { ...state };
+        
+        // Salva localmente
+        localStorage.setItem(`map_${currentMapName}`, JSON.stringify(mapStateToSave));
+        
+        // Atualiza a lista de mapas se necessário
+        if (!state.currentUser) {
+            updateMapList();
+        }
+        
+        console.log(`Auto-save realizado para: ${currentMapName}`);
+    }, AUTO_SAVE_DELAY);
+}
 /**
  * Ouve em tempo real as mudanças na coleção de mapas do usuário no Firestore.
  */
@@ -34,7 +69,7 @@ export async function updateMapList(firestoreMaps: FirebaseMapData[] | null = nu
     let mapsToDisplay: FirebaseMapData[] = firestoreMaps || [];
 
     // Se estiver offline, tente carregar do armazenamento local (simulado com localStorage)
-    if (!firestoreMaps && !state.currentUser) {
+    if (!firestoreMaps) {
         const localMaps = getLocalSavedMaps();
         mapsToDisplay = Object.keys(localMaps).map(name => ({
             id: name, // Para mapas locais, o nome é o ID
@@ -53,12 +88,84 @@ export async function updateMapList(firestoreMaps: FirebaseMapData[] | null = nu
 }
 
 /**
+ * Encontra um documento no Firestore pelo nome do mapa
+ */
+async function findMapByName(mapName: string): Promise<string | null> {
+    if (!state.currentUser) return null;
+    
+    try {
+        const mapsRef = collection(db, 'users', state.currentUser.uid, 'maps');
+        const q = query(mapsRef, where('name', '==', mapName));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+            return querySnapshot.docs[0].id;
+        }
+    } catch (error) {
+        console.error('Erro ao buscar mapa por nome:', error);
+    }
+    
+    return null;
+}
+
+/**
+ * Sincroniza o mapa atual com a nuvem (Firestore)
+ * Substitui a função saveCurrentMap original
+ */
+export async function syncWithCloud(): Promise<void> {
+    if (!state.currentUser) {
+        Toast.show({text:'Você precisa estar logado para sincronizar com a nuvem.'});
+        return;
+    }
+    
+    const name = mapNameInput.value.trim();
+    if (!name) {
+        Toast.show({text:'Por favor, dê um nome ao seu mapa antes de sincronizar.'});
+        return;
+    }
+    
+    // Garante que o nextCardId está atualizado
+    state.nextCardId = state.cards.length > 0 ? Math.max(...state.cards.map(c => c.id)) + 1 : 1;
+    
+    const mapStateToSave: Omit<AppState, 'currentUser' | 'unsubscribeFromMaps'> = { ...state };
+
+    try {
+        // Verifica se já existe um mapa com este nome
+        const existingMapId = await findMapByName(name);
+        let mapRef: 
+            | DocumentReference<DocumentData, DocumentData> 
+            | DocumentReference<{ name: string; state: string; }, DocumentData>;
+        
+        if (existingMapId) {
+            // Sobrescreve o mapa existente
+            mapRef = doc(db, 'users', state.currentUser.uid, 'maps', existingMapId);
+            await setDoc(mapRef, {
+                name: name,
+                state: JSON.stringify(mapStateToSave)
+            });
+            Toast.show({text:`Mapa "${name}" atualizado na nuvem!`});
+        } else {
+            // Cria um novo mapa
+            mapRef = doc(collection(db, 'users', state.currentUser.uid, 'maps'));
+            await setDoc(mapRef, {
+                name: name,
+                state: JSON.stringify(mapStateToSave)
+            });
+            Toast.show({text: `Mapa "${name}" sincronizado com a nuvem!`});
+        }
+    } catch (e) {
+        console.error('Erro ao sincronizar com a nuvem:', e);
+        Toast.show({text: 'Ocorreu um erro ao sincronizar com a nuvem.'});
+    }
+}
+
+/**
  * Salva o estado atual do canvas como um novo mapa.
  */
 export async function saveCurrentMap(): Promise<void> {
     const name = mapNameInput.value.trim();
     if (!name) {
-        alert('Por favor, dê um nome ao seu mapa.');
+        Toast.show({text: 'Por favor, dê um nome ao seu mapa.'});
         return;
     }
     
@@ -75,17 +182,12 @@ export async function saveCurrentMap(): Promise<void> {
                 name: name,
                 state: JSON.stringify(mapStateToSave)
             });
-            alert(`Mapa "${name}" salvo na nuvem!`);
+            Toast.show({text: `Mapa "${name}" salvo na nuvem!`});
         } catch (e) {
             console.error('Erro ao salvar no Firestore:', e);
-            alert('Ocorreu um erro ao salvar na nuvem.');
+            Toast.show({text: 'Ocorreu um erro ao salvar na nuvem.'});
         }
-    } else {
-        // Salvar Localmente
-        localStorage.setItem(`map_${name}`, JSON.stringify(mapStateToSave));
-        alert(`Mapa "${name}" salvo localmente!`);
-        updateMapList();
-    }
+    } 
 }
 
 /**
@@ -107,7 +209,8 @@ export async function loadMap(): Promise<void> {
                 mapNameInput.value = mapData.name;
                 filterTagInput.value = state.activeFilter || '';
                 render();
-                alert(`Mapa "${mapData.name}" carregado da nuvem.`);
+                triggerAutoSave(); // Garante que o estado atual seja salvo
+                Toast.show({text: `Mapa "${mapData.name}" carregado da nuvem.`});
             }
         } catch (e) {
             console.error("Erro ao carregar mapa do Firestore:", e);
@@ -122,7 +225,7 @@ export async function loadMap(): Promise<void> {
             mapNameInput.value = mapName;
             filterTagInput.value = state.activeFilter || '';
             render();
-            alert(`Mapa "${mapName}" carregado localmente.`);
+            Toast.show({text: `Mapa "${mapName}" carregado localmente.`});
         }
     }
 }
@@ -133,13 +236,21 @@ export async function loadMap(): Promise<void> {
 export async function deleteMap(): Promise<void> {
     const mapId = loadMapSelect.value;
     const mapName = loadMapSelect.options[loadMapSelect.selectedIndex].text;
-    if (!mapId || !confirm(`Tem certeza que deseja deletar o mapa "${mapName}"?`)) return;
+    const confirmResult = await Dialog.confirm({
+        okButtonTitle: "Sim", 
+        cancelButtonTitle: "Não", 
+        message: `Tem certeza que deseja deletar o mapa "${mapName}"?`
+    });
+
+    if (!mapId || !confirmResult.value) return;
 
     if (state.currentUser) {
         // Deletar do Firestore
         try {
             await deleteDoc(doc(db, 'users', state.currentUser.uid, 'maps', mapId));
-            alert(`Mapa "${mapName}" deletado da nuvem.`);
+            Toast.show({text: `Mapa "${mapName}" deletado da nuvem.`});
+            // Também remove da versão local se existir
+            localStorage.removeItem(`map_${mapName}`);
             clearCanvasState();
         } catch (e) {
             console.error("Erro ao deletar do Firestore:", e);
@@ -147,7 +258,7 @@ export async function deleteMap(): Promise<void> {
     } else {
         // Deletar Localmente
         localStorage.removeItem(`map_${mapId}`);
-        alert(`Mapa "${mapName}" deletado localmente.`);
+        Toast.show({text: `Mapa "${mapName}" deletado localmente.`});
         clearCanvasState();
         updateMapList();
     }

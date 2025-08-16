@@ -18,6 +18,9 @@ import { auth } from './firebase';
 import { state } from './canvas';
 import { listenToFirestoreMaps, updateMapList } from './maps';
 import { clearCanvasState } from './canvas';
+import { Dialog } from '@capacitor/dialog';
+import { Toast } from "@capacitor/toast";
+
 
 // --- REFERÊNCIAS AOS ELEMENTOS DO DOM ---
 const authContainer = document.getElementById('auth-container') as HTMLDivElement;
@@ -35,7 +38,8 @@ export async function handleSignUp(): Promise<void> {
     try {
         await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
     } catch (error: any) {
-        alert(`Erro ao criar conta: ${error.message}`);
+        Toast.show({text: "Ocorreu um erro ao criar a conta."});
+        console.error('Erro ao criar conta:', error);
     }
 }
 
@@ -47,7 +51,8 @@ export async function handleSignIn(e: Event): Promise<void> {
     try {
         await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
     } catch (error: any) {
-        alert(`Erro ao entrar: ${error.message}`);
+        Toast.show({text:`Ocorreu um erro ao entrar.`});
+        console.error('Erro ao entrar:', error);
     }
 }
 
@@ -84,7 +89,7 @@ export async function handleGoogleSignIn(): Promise<void> {
         }
     } catch (error: any) {
         console.error('Erro no login com Google:', error);
-        alert(`Erro no login com Google: ${error.message}`);
+        Toast.show({text:`Ocorreu um erro no login com o Google.`});
     }
 }
 
