@@ -1,5 +1,5 @@
 // auth.ts
-
+import { showToast } from "./utils/toast";
 import {
     onAuthStateChanged,
     createUserWithEmailAndPassword,
@@ -18,7 +18,6 @@ import { auth } from './firebase';
 import { state } from './canvas';
 import { listenToFirestoreMaps, updateMapList } from './maps';
 import { clearCanvasState } from './canvas';
-import { Dialog } from '@capacitor/dialog';
 import { Toast } from "@capacitor/toast";
 
 
@@ -38,7 +37,7 @@ export async function handleSignUp(): Promise<void> {
     try {
         await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
     } catch (error: any) {
-        Toast.show({text: "Ocorreu um erro ao criar a conta."});
+        showToast({text: "Ocorreu um erro ao criar a conta."});
         console.error('Erro ao criar conta:', error);
     }
 }
@@ -51,7 +50,7 @@ export async function handleSignIn(e: Event): Promise<void> {
     try {
         await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
     } catch (error: any) {
-        Toast.show({text:`Ocorreu um erro ao entrar.`});
+        showToast({text:`Ocorreu um erro ao entrar.`});
         console.error('Erro ao entrar:', error);
     }
 }
@@ -89,7 +88,7 @@ export async function handleGoogleSignIn(): Promise<void> {
         }
     } catch (error: any) {
         console.error('Erro no login com Google:', error);
-        Toast.show({text:`Ocorreu um erro no login com o Google.`});
+        showToast({text:`Ocorreu um erro no login com o Google.`});
     }
 }
 

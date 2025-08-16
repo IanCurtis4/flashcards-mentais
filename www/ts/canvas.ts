@@ -336,7 +336,9 @@ function onPointerMove(e: MouseEvent | TouchEvent): void {
             if (cardData.isFlipped) {
                 if (newWidth >= 100) {
                     cardData.width = newWidth;
-                    cardData.x = initialCardX + dx; // Também ajustado aqui
+                    // Ajuste especial para card flipado: movemos o card para a esquerda
+                    cardData.x = initialCardX - dx;
+                    
                 }
             } else {
                 cardData.width = newWidth;

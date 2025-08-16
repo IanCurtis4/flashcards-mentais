@@ -1,6 +1,5 @@
 // events.ts
-
-import { Dialog } from '@capacitor/dialog';
+import { showToast } from './utils/toast';
 import { handleSignUp, handleSignIn, handleGoogleSignIn, handleLogout } from './auth';
 import { render, state, deleteCard, toggleEditMode, onPointerStart, clearCanvasState, canvas, fromCardSelect, toCardSelect, initializeZoomControls } from './canvas';
 import { saveCurrentMap, loadMap, deleteMap, triggerAutoSave, syncWithCloud } from './maps';
@@ -33,7 +32,7 @@ function handleAddCard(e: Event) {
     
     const tags = tagsInput.value.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean);
     if (tags.length === 0) {
-        Toast.show({text:'Por favor, adicione pelo menos uma tag.'});
+        showToast({text:'Por favor, adicione pelo menos uma tag.'});
         return;
     }
 
@@ -67,7 +66,7 @@ function handleConnectCards(e: Event) {
             render();
             triggerAutoSave();
         } else {
-            Toast.show({text:'Essa conexão já existe.'});
+            showToast({text:'Essa conexão já existe.'});
         }
     }
 }
@@ -137,7 +136,7 @@ export function initializeEventListeners(): void {
     });
 
     // Map Management
-    saveMapBtn.addEventListener('click', syncWithCloud);
+    saveMapBtn.addEventListener('click', saveCurrentMap);
     loadMapBtn.addEventListener('click', loadMap);
     deleteMapBtn.addEventListener('click', deleteMap);
     clearCanvasBtn.addEventListener('click', clearCanvasState);
