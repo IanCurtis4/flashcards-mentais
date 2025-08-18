@@ -263,20 +263,7 @@ const firebaseConfig = {
 5. **Clique** em "Registrar app"
 6. **BAIXE** o arquivo `google-services.json`
 
-### Passo 6: Configurar OAuth2 no Google Cloud
-
-1. **Acesse** [console.cloud.google.com](https://console.cloud.google.com)
-2. **Selecione** o projeto do Firebase (mesmo nome)
-3. **Menu** > "APIs e serviços" > "Credenciais"
-4. **Encontre** o "Cliente OAuth 2.0 para Web"
-5. **Clique para editar**
-6. **Adicione** em "URIs de redirecionamento autorizados":
-   ```
-   http://localhost:5173
-   https://seu-projeto.firebaseapp.com
-   ```
-
-### Passo 7: Atualizar seu código
+### Passo 6: Atualizar seu código
 
 1. **Substitua** o conteúdo do `www/firebase.ts`:
 
@@ -310,9 +297,8 @@ if (Capacitor.getPlatform() === 'electron') {
 }
 ```
 
-2. **Coloque** o arquivo `google-services.json` em `android/app/`
-
-### Passo 8: Configurar regras do Firestore
+2. **Coloque** o arquivo `google-services.json` em `android/app/`.
+### Passo 7: Configurar regras do Firestore
 
 1. **No Firebase Console** > "Firestore Database" > "Regras"
 2. **Substitua** por estas regras básicas:
@@ -349,6 +335,108 @@ service cloud.firestore {
 2. Extrair SHA-1: `keytool -list -v -keystore release-key.keystore -alias my-key-alias`
 3. Adicionar no Firebase Console > "Configurações do projeto" > "Seus apps" > Android
 
+## O que está faltando para o Android?
+
+**Para facilitar a visualização das pastas do projeto, siga essas instruções:**
+
+1. Abra seu Android Studio
+2. Vá até o canto superior esquerdo da tela, e ache esse menu: 
+![Primeiro passo](/docs/pastas-android-primeiro-passo.png)
+3. Abra o menu, e clique na opção `Project`: 
+![Segundo passo](/docs/pastas-android-segundo-passo.png)
+
+### 1. **Implementar dependências do Firebase no Android**
+   - É necessário adicionar a dependência do Firebase e do plugin do Google Services no build.gradle.
+   No arquivo `android/build.gradle`:
+   ```gradle
+   buildscript {
+      dependencies {
+         // Adicione esta linha
+         classpath 'com.google.gms:google-services:4.4.1'
+      }
+   }
+   ```
+   E no `android/app/build.gradle`:
+   ```gradle
+   apply plugin: 'com.android.application'
+   // Adicione no final do arquivo:
+   apply plugin: 'com.google.gms.google-services'
+
+   dependencies {
+      // Adicione estas dependências
+      implementation platform('com.google.firebase:firebase-bom:34.1.0')
+      implementation 'com.google.firebase:firebase-auth'
+      implementation 'com.google.firebase:firebase-firestore'
+   }
+   ```
+### 2. **Permissões no AndroidManifest.xml**:
+   - Verificar se as permissões necessárias (como internet) estão presentes.
+   Em `android/app/src/main/AndroidManifest.xml`:
+   ```xml
+   <application>
+      <!-- Adicione estas permissões -->
+      <uses-permission android:name="android.permission.INTERNET"/>
+      <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+      
+      <!-- Adicione dentro de <application> -->
+      <meta-data
+         android:name="com.google.android.gms.version"
+         android:value="@integer/google_play_services_version" />
+   </application>
+   ```
+### 3. **Configuração do OAuth no Android**:
+   - Para autenticação com Google, é necessário configurar o fingerprint SHA-1 no Firebase.
+   - Para desenvolvimento, você pode usar o debug keystore. O Capacitor usa um keystore padrão para debug.
+   Como obter o SHA-1 do debug keystore?
+   
+   No Linux:
+   ```bash
+   keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+   ```
+   No Windows:
+   ```cmd
+   keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androiddebugkey -storepass android -keypass android
+   ```
+
+   E adicionar esse SHA-1 no Firebase Console, no app Android.
+### 4. **Configuração de strings.xml para o Firebase** (não é mais necessário se usar google-services.json):
+   Em `android/app/src/main/res/values/strings.xml`:
+   ```xml
+   <resources>
+      <!-- Adicione seu ID de cliente web do Firebase -->
+      <string name="server_client_id">SEU_CLIENT_ID_DO_FIREBASE</string>
+   </resources>
+   ```
+   O client_id deve ser o mesmo do client_id dessa área do `google-services.json`:
+   ```json
+   "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "190585744647-6fbgbkfn4fk299348bl5utpvisf9e7q1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+   ```
+### 5. **Atualizar o capacitor.config.ts**:
+   - O `appId` deve ser o mesmo que o registrado no Firebase para Android (o package name).
+   No exemplo, está `com.seuapp.id`. Você deve alterar para o seu próprio, por exemplo: `com.example.flashcards`.
+   E também, no Firebase, ao registrar o app Android, usar o mesmo package name.
+
+### Resumo do que deve ser feito em um novo fork:
+1. **Alterar o `appId` no `capacitor.config.ts`** para o package name desejado (ex: `com.example.flashcards`).
+2. **Registrar o app no Firebase Console** para Android, usando o mesmo package name.
+3. **Baixar o `google-services.json`** e colocar em `android/app/`.
+4. **Configurar o `build.gradle`** (tanto no nível do projeto quanto no módulo app) para incluir o plugin do Google Services.
+5. **Adicionar as dependências do Firebase** no `app/build.gradle`.
+6. **Adicionar a permissão de internet** no `AndroidManifest.xml` (se já não estiver).
+7. 
+7. **Adicionar o SHA-1 do debug keystore** no Firebase Console para o app Android.
+8. **Sincronizar o projeto** no Android Studio (Gradle Sync).
+9. **Testar** o app.
+
 ## ⚠️ Segurança Importante
 
 - **NUNCA** commite arquivos com chaves reais no Git público
@@ -373,5 +461,12 @@ service cloud.firestore {
 4. Pesquise o erro específico no Google
 
 ---
+
+## Responsáveis:
+
+- PO e idealizadora: **Marina Micas Jardim** 
+  [GitHub](https://github.com/marinamicas) | [LinkedIn](https://www.linkedin.com/in/marinamicas/) 
+- Desenvolvedor: **João Pedro Maione Ribeiro**
+  [GitHub](https://github.com/IanCurtis4) | [LinkedIn](https://www.linkedin.com/in/jo%C3%A3o-pedro-maione-ribeiro/)
 
 **Desenvolvido com ❤️ usando Vite + TypeScript + Capacitor**
